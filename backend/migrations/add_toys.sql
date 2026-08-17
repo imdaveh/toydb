@@ -9,6 +9,9 @@ CREATE TABLE IF NOT EXISTS toys (
   sub_series VARCHAR(255),
   toyline VARCHAR(255),
   `year` SMALLINT UNSIGNED,
+  cost DECIMAL(10,2),
+  source VARCHAR(255),
+  notes TEXT,
   accessories TEXT,
   `condition` VARCHAR(50),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -27,3 +30,6 @@ CREATE TABLE IF NOT EXISTS toy_photos (
 -- If updating an existing database, try to add missing columns safely
 ALTER TABLE toys ADD COLUMN IF NOT EXISTS toyline VARCHAR(255);
 ALTER TABLE toys ADD COLUMN IF NOT EXISTS `year` SMALLINT UNSIGNED;
+ALTER TABLE toys ADD COLUMN IF NOT EXISTS cost DECIMAL(10,2);
+ALTER TABLE toys ADD COLUMN IF NOT EXISTS source VARCHAR(255);
+ALTER TABLE toys ADD COLUMN IF NOT EXISTS notes TEXT;

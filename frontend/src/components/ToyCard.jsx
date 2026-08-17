@@ -38,6 +38,10 @@ export default function ToyCard({ toy, onDeleted }){
         )}
         <div className="text-sm text-gray-600 mt-2">{toy.manufacturer} {toy.series ? `• ${toy.series}` : ''} {toy.sub_series ? `• ${toy.sub_series}` : ''}</div>
         <div className="text-sm mt-1">Condition: <span className="font-medium">{toy.condition || 'N/A'}</span></div>
+        {(toy.cost || toy.source) && (
+          <div className="text-sm text-gray-700 mt-1">{toy.cost ? `Cost: $${parseFloat(toy.cost).toFixed(2)}` : ''} {toy.source ? `• Source: ${toy.source}` : ''}</div>
+        )}
+        {toy.notes && <div className="text-sm text-gray-600 mt-1">Notes: {toy.notes.length > 120 ? toy.notes.substring(0,117) + '...' : toy.notes}</div>}
         <div className="text-xs text-gray-500 mt-2">Accessories: {toy.accessories || 'None'}</div>
         <div className="mt-2 flex gap-2">
           <button onClick={()=>navigate('/toys/' + toy.id + '/edit')} className="text-sm text-blue-600">Edit</button>

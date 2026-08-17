@@ -36,6 +36,9 @@ export default function EditToy(){
         sub_series: d.toy.sub_series || '',
         toyline: d.toy.toyline || '',
         year: d.toy.year || '',
+        cost: d.toy.cost || '',
+        source: d.toy.source || '',
+        notes: d.toy.notes || '',
         accessories: d.toy.accessories || '',
         condition: d.toy.condition || ''
       })
@@ -102,6 +105,11 @@ export default function EditToy(){
           <input value={form.series} onChange={e=>setForm({...form, series: e.target.value})} placeholder="Series" className="flex-1 p-2 border rounded" />
           <input value={form.sub_series} onChange={e=>setForm({...form, sub_series: e.target.value})} placeholder="Sub-series" className="flex-1 p-2 border rounded" />
         </div>
+        <div className="flex gap-2">
+          <input value={form.cost || ''} onChange={e=>setForm({...form, cost: e.target.value})} placeholder="Cost" type="number" step="0.01" className="flex-1 p-2 border rounded" />
+          <input value={form.source || ''} onChange={e=>setForm({...form, source: e.target.value})} placeholder="Source" className="flex-1 p-2 border rounded" />
+        </div>
+        <textarea value={form.notes || ''} onChange={e=>setForm({...form, notes: e.target.value})} placeholder="Notes" className="w-full p-2 border rounded" />
         <input value={form.accessories} onChange={e=>setForm({...form, accessories: e.target.value})} placeholder="Accessories" className="w-full p-2 border rounded" />
         <select value={form.condition} onChange={e=>setForm({...form, condition: e.target.value})} className="w-full p-2 border rounded">
           <option>Mint</option>

@@ -9,6 +9,9 @@ export default function ToyForm({ onCreated, onCancel }){
   const [year, setYear] = useState('')
   const [accessories, setAccessories] = useState('')
   const [condition, setCondition] = useState('Good')
+  const [cost, setCost] = useState('')
+  const [source, setSource] = useState('')
+  const [notes, setNotes] = useState('')
   const [photos, setPhotos] = useState(null)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -28,6 +31,9 @@ export default function ToyForm({ onCreated, onCancel }){
       fd.append('sub_series', subSeries)
       fd.append('toyline', toyline)
       fd.append('year', year)
+      fd.append('cost', cost)
+      fd.append('source', source)
+      fd.append('notes', notes)
       fd.append('accessories', accessories)
       fd.append('condition', condition)
       if (photos) {
@@ -36,7 +42,7 @@ export default function ToyForm({ onCreated, onCancel }){
       const res = await fetch(import.meta.env.VITE_API_BASE + '/toys', { method: 'POST', credentials: 'include', headers: { Authorization: 'Bearer ' + token }, body: fd })
       const d = await res.json()
       if (!res.ok) return setError(d.error || 'Failed')
-      setName(''); setManufacturer(''); setToyline(''); setYear(''); setSeries(''); setSubSeries(''); setAccessories(''); setCondition('Good'); setPhotos(null)
+      setName(''); setManufacturer(''); setToyline(''); setYear(''); setSeries(''); setSubSeries(''); setAccessories(''); setCondition('Good'); setCost(''); setSource(''); setNotes(''); setPhotos(null)
       if (onCreated) onCreated()
     } catch (err){ setError('Server error') }
     setLoading(false)
@@ -55,6 +61,11 @@ export default function ToyForm({ onCreated, onCancel }){
         <input value={series} onChange={e=>setSeries(e.target.value)} placeholder="Series" className="flex-1 p-2 border rounded" />
         <input value={subSeries} onChange={e=>setSubSeries(e.target.value)} placeholder="Sub-series" className="flex-1 p-2 border rounded" />
       </div>
+      <div className="flex gap-2">
+        <input value={cost} onChange={e=>setCost(e.target.value)} placeholder="Cost" type="number" step="0.01" className="flex-1 p-2 border rounded" />
+        <input value={source} onChange={e=>setSource(e.target.value)} placeholder="Source" className="flex-1 p-2 border rounded" />
+      </div>
+      <textarea value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Notes" className="w-full p-2 border rounded" />
       <input value={accessories} onChange={e=>setAccessories(e.target.value)} placeholder="Accessories (comma separated)" className="w-full p-2 border rounded" />
       <select value={condition} onChange={e=>setCondition(e.target.value)} className="w-full p-2 border rounded">
         <option>Mint</option>

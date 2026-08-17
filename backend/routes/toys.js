@@ -30,17 +30,26 @@ async function ensureToyColumns() {
   try {
     await pool.query("ALTER TABLE toys ADD COLUMN `year` SMALLINT UNSIGNED");
   } catch (e) { /* ignore */ }
+  try {
+    await pool.query("ALTER TABLE toys ADD COLUMN cost DECIMAL(10,2)");
+  } catch (e) { /* ignore */ }
+  try {
+    await pool.query("ALTER TABLE toys ADD COLUMN source VARCHAR(255)");
+  } catch (e) { /* ignore */ }
+  try {
+    await pool.query("ALTER TABLE toys ADD COLUMN notes TEXT");
+  } catch (e) { /* ignore */ }
 }
 
 // Create toy
 router.post('/', authenticate, upload.array('photos', 8), async (req, res) => {
   const userId = req.user.id;
-  const { name, manufacturer, series, sub_series, toyline, year, accessories, condition } = req.body || {};
+  const { name, manufacturer, series, sub_series, toyline, year, accessories, condition, cost, source, notes } = req.body || {};
   if (!name) return res.status(400).json({ error: 'Name is required' });
   try {
     const [result] = await pool.query(
-      'INSERT INTO toys (user_id, name, manufacturer, series, sub_series, toyline, `year`, accessories, `condition`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [userId, name, manufacturer || null, series || null, sub_series || null, toyline || null, year ? parseInt(year) : null, accessories || null, condition || null]
+      'INSERT INTO toys (user_id, name, manufacturer, series, sub_series, toyline, `year`, cost, source, notes, accessories, `condition`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [userId, name, manufacturer || null, series || null, sub_series || null, toyline || null, year ? parseInt(year) : null, (req.body.cost ? parseFloat(req.body.cost) : null), req.body.source || null, req.body.notes || null, accessories || null, condition || null]
     );
     const toyId = result.insertId;
     // store photos
@@ -55,8 +64,8 @@ router.post('/', authenticate, upload.array('photos', 8), async (req, res) => {
       try {
         await ensureToyColumns();
         const [result] = await pool.query(
-          'INSERT INTO toys (user_id, name, manufacturer, series, sub_series, toyline, `year`, accessories, `condition`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          [userId, name, manufacturer || null, series || null, sub_series || null, toyline || null, year ? parseInt(year) : null, accessories || null, condition || null]
+          'INSERT INTO toys (user_id, name, manufacturer, series, sub_series, toyline, `year`, cost, source, notes, accessories, `condition`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          [userId, name, manufacturer || null, series || null, sub_series || null, toyline || null, year ? parseInt(year) : null, (req.body.cost ? parseFloat(req.body.cost) : null), req.body.source || null, req.body.notes || null, accessories || null, condition || null]
         );
         const toyId = result.insertId;
         const files = req.files || [];
@@ -78,12 +87,12 @@ router.get('/', authenticate, async (req, res) => {
   try {
     let toys;
     try {
-      const [rows] = await pool.query('SELECT id, name, manufacturer, series, sub_series, toyline, `year`, accessories, `condition`, created_at FROM toys WHERE user_id = ?', [userId]);
+      const [rows] = await pool.query('SELECT id, name, manufacturer, series, sub_series, toyline, `year`, cost, source, notes, accessories, `condition`, created_at FROM toys WHERE user_id = ?', [userId]);
       toys = rows;
     } catch (e) {
       if (e && e.code === 'ER_BAD_FIELD_ERROR') {
         await ensureToyColumns();
-        const [rows] = await pool.query('SELECT id, name, manufacturer, series, sub_series, toyline, `year`, accessories, `condition`, created_at FROM toys WHERE user_id = ?', [userId]);
+        const [rows] = await pool.query('SELECT id, name, manufacturer, series, sub_series, toyline, `year`, cost, source, notes, accessories, `condition`, created_at FROM toys WHERE user_id = ?', [userId]);
         toys = rows;
       } else throw e;
     }
@@ -106,11 +115,11 @@ router.get('/:id', authenticate, async (req, res) => {
   try {
     let rows;
     try {
-      [rows] = await pool.query('SELECT id, name, manufacturer, series, sub_series, toyline, `year`, accessories, `condition`, created_at FROM toys WHERE id = ? AND user_id = ?', [id, userId]);
+      [rows] = await pool.query('SELECT id, name, manufacturer, series, sub_series, toyline, `year`, cost, source, notes, accessories, `condition`, created_at FROM toys WHERE id = ? AND user_id = ?', [id, userId]);
     } catch (e) {
       if (e && e.code === 'ER_BAD_FIELD_ERROR') {
         await ensureToyColumns();
-        [rows] = await pool.query('SELECT id, name, manufacturer, series, sub_series, toyline, `year`, accessories, `condition`, created_at FROM toys WHERE id = ? AND user_id = ?', [id, userId]);
+        [rows] = await pool.query('SELECT id, name, manufacturer, series, sub_series, toyline, `year`, cost, source, notes, accessories, `condition`, created_at FROM toys WHERE id = ? AND user_id = ?', [id, userId]);
       } else throw e;
     }
     if (!rows.length) return res.status(404).json({ error: 'Toy not found' });
@@ -128,16 +137,16 @@ router.get('/:id', authenticate, async (req, res) => {
 router.put('/:id', authenticate, async (req, res) => {
   const userId = req.user.id;
   const id = req.params.id;
-  const { name, manufacturer, series, sub_series, toyline, year, accessories, condition } = req.body || {};
+  const { name, manufacturer, series, sub_series, toyline, year, accessories, condition, cost, source, notes } = req.body || {};
   if (!name) return res.status(400).json({ error: 'Name is required' });
   try {
     let result;
     try {
-      [result] = await pool.query('UPDATE toys SET name=?, manufacturer=?, series=?, sub_series=?, toyline=?, `year`=?, accessories=?, `condition`=? WHERE id=? AND user_id=?', [name, manufacturer || null, series || null, sub_series || null, toyline || null, year ? parseInt(year) : null, accessories || null, condition || null, id, userId]);
+      [result] = await pool.query('UPDATE toys SET name=?, manufacturer=?, series=?, sub_series=?, toyline=?, `year`=?, cost=?, source=?, notes=?, accessories=?, `condition`=? WHERE id=? AND user_id=?', [name, manufacturer || null, series || null, sub_series || null, toyline || null, year ? parseInt(year) : null, (cost ? parseFloat(cost) : null), source || null, notes || null, accessories || null, condition || null, id, userId]);
     } catch (e) {
       if (e && e.code === 'ER_BAD_FIELD_ERROR') {
         await ensureToyColumns();
-        [result] = await pool.query('UPDATE toys SET name=?, manufacturer=?, series=?, sub_series=?, toyline=?, `year`=?, accessories=?, `condition`=? WHERE id=? AND user_id=?', [name, manufacturer || null, series || null, sub_series || null, toyline || null, year ? parseInt(year) : null, accessories || null, condition || null, id, userId]);
+        [result] = await pool.query('UPDATE toys SET name=?, manufacturer=?, series=?, sub_series=?, toyline=?, `year`=?, cost=?, source=?, notes=?, accessories=?, `condition`=? WHERE id=? AND user_id=?', [name, manufacturer || null, series || null, sub_series || null, toyline || null, year ? parseInt(year) : null, (cost ? parseFloat(cost) : null), source || null, notes || null, accessories || null, condition || null, id, userId]);
       } else throw e;
     }
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Toy not found' });
