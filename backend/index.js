@@ -4,6 +4,7 @@ const cookieParser = require('cookie-parser');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const authRoutes = require('./routes/auth');
+const toysRoutes = require('./routes/toys');
 const pool = require('./db');
 
 const app = express();
@@ -18,25 +19,13 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(cors({ origin: FRONTEND, credentials: true }));
 
+// serve uploaded images
+app.use('/uploads', express.static(require('path').join(__dirname, 'uploads')));
+
 app.use('/auth', authRoutes);
+app.use('/toys', toysRoutes);
 
-// protected route example
-function authenticate(req, res, next) {
-  const auth = req.headers['authorization'];
-  if (!auth) return res.status(401).json({ error: 'Missing authorization' });
-  const parts = auth.split(' ');
-  if (parts.length !== 2 || parts[0] !== 'Bearer') return res.status(401).json({ error: 'Invalid authorization format' });
-  const token = parts[1];
-  try {
-    const payload = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
-    req.user = payload;
-    next();
-  } catch (err) {
-    return res.status(401).json({ error: 'Invalid or expired token' });
-  }
-}
-
-app.get('/dashboard', authenticate, async (req, res) => {
+app.get('/dashboard', require('./middleware/auth').authenticate, async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT id, email, created_at FROM users WHERE id = ?', [req.user.id]);
     if (!rows.length) return res.status(404).json({ error: 'User not found' });

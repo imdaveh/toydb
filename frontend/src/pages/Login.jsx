@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 
 export default function Login(){
   const [email, setEmail] = useState('')
@@ -39,6 +39,7 @@ export default function Login(){
       <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email" className="w-full p-2 border rounded" />
       <input value={password} onChange={e=>setPassword(e.target.value)} type="password" placeholder="Password" className="w-full p-2 border rounded" />
       <button className="w-full bg-blue-600 text-white p-2 rounded">Login</button>
+      <div className="text-center text-sm text-gray-600 mt-2">Don't have an account? <Link to="/register" className="text-blue-600">Register</Link></div>
     </form>
   )
 }
