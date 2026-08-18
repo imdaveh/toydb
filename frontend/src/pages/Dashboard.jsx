@@ -51,12 +51,10 @@ export default function Dashboard(){
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col items-center justify-center text-center">
         <div>
-          <h2 className="text-lg font-medium">Welcome, {user.email}</h2>
-          <div className="text-sm text-gray-600">Member since: {new Date(user.createdAt).toLocaleString()}</div>
-        </div>
-        <div className="flex items-center gap-2">
+          <h2 className="text-base font-medium">Welcome, {user.email}</h2>
+          <div className="text-xs text-gray-600">Member since: {new Date(user.createdAt).toLocaleString()}</div>
         </div>
       </div>
 

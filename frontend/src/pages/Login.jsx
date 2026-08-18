@@ -33,13 +33,19 @@ export default function Login(){
   }
 
   return (
-    <form onSubmit={submit} className="space-y-4">
-      <h2 className="text-lg font-medium">Login</h2>
-      {error && <div className="text-red-600">{error}</div>}
-      <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email" className="w-full p-2 border rounded" />
-      <input value={password} onChange={e=>setPassword(e.target.value)} type="password" placeholder="Password" className="w-full p-2 border rounded" />
-      <button className="w-full bg-blue-600 text-white p-2 rounded">Login</button>
-      <div className="text-center text-sm text-gray-600 mt-2">Don't have an account? <Link to="/register" className="text-blue-600">Register</Link></div>
-    </form>
+    <div className="max-w-md mx-auto">
+      <div className="flex flex-col items-center mb-6">
+        <img src="/logo.png" alt="ToyBox — Collection Manager" className="h-20 md:h-24 lg:h-32 w-auto" />
+        <h1 className="text-2xl font-semibold mt-3">Collection Manager</h1>
+      </div>
+
+      <form onSubmit={submit} className="space-y-4">
+        {error && <div className="text-red-600">{error}</div>}
+        <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email" className="w-full p-2 border rounded" />
+        <input value={password} onChange={e=>setPassword(e.target.value)} type="password" placeholder="Password" className="w-full p-2 border rounded" />
+        <button className="w-full bg-blue-600 text-white p-2 rounded">Login</button>
+        <div className="text-center text-sm text-gray-600 mt-2">Don't have an account? <Link to="/register" className="text-blue-600">Register</Link></div>
+      </form>
+    </div>
   )
 }
