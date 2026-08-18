@@ -23,7 +23,8 @@ export default function App(){
           {!isLogin && (
             <nav className="space-x-3 text-sm">
               <Link to="/add" className="text-blue-600">Add Toy</Link>
-              <button onClick={logout} className="text-sm text-red-600 ml-2">Logout</button>
+              <span className="text-gray-400 px-1">|</span>
+              <button onClick={logout} className="text-sm text-red-600">Logout</button>
             </nav>
           )}
         </header>
