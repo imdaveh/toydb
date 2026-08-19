@@ -11,13 +11,16 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 const FRONTEND = process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
 const allowedOrigins = new Set([
-  FRONTEND,
+  ...FRONTEND.split(',').map(origin => origin.trim()).filter(Boolean),
+  ...(process.env.CORS_ORIGINS || '').split(',').map(origin => origin.trim()).filter(Boolean),
   'http://localhost:5173',
   'http://localhost:4173',
   'http://127.0.0.1:5173',
   'http://127.0.0.1:4173',
   'http://[::1]:5173',
-  'http://[::1]:4173'
+  'http://[::1]:4173',
+  'https://mntoyhunters.com',
+  'https://www.mntoyhunters.com'
 ]);
 
 if (!process.env.ACCESS_TOKEN_SECRET || !process.env.REFRESH_TOKEN_SECRET) {
@@ -40,6 +43,20 @@ app.use('/uploads', express.static(require('path').join(__dirname, 'uploads')));
 app.use('/auth', authRoutes);
 app.use('/toys', toysRoutes);
 
+app.get('/health', async (req, res) => {
+  try {
+    if (!process.env.ACCESS_TOKEN_SECRET || !process.env.REFRESH_TOKEN_SECRET) {
+      return res.status(503).json({ ok: false });
+    }
+    await pool.query('SELECT 1 FROM users LIMIT 1');
+    await pool.query('SELECT 1 FROM refresh_tokens LIMIT 1');
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Health check failed:', err && (err.code || err.message));
+    res.status(503).json({ ok: false });
+  }
+});
+
 app.get('/dashboard', require('./middleware/auth').authenticate, async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT id, email, created_at FROM users WHERE id = ?', [req.user.id]);
@@ -52,6 +69,6 @@ app.get('/dashboard', require('./middleware/auth').authenticate, async (req, res
   }
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server listening on port ${PORT}`);
 });

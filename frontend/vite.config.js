@@ -7,12 +7,14 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['logo.png'],
+      includeAssets: ['logo.png', 'favicon.svg'],
       manifest: {
         name: 'ToyDB',
         short_name: 'ToyDB',
         description: 'Toy collection manager',
+        id: '/',
         start_url: '/',
+        scope: '/',
         display: 'standalone',
         theme_color: '#142B3A',
         background_color: '#FFF8E8',

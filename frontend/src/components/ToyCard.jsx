@@ -1,9 +1,14 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 export default function ToyCard({ toy, onDeleted }){
   const navigate = useNavigate()
   const [expanded, setExpanded] = useState(false)
+  const [isPhotoOpen, setIsPhotoOpen] = useState(false)
+  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0)
+  const photos = toy.photos || []
+  const photo = photos[selectedPhotoIndex]
+  const photoUrl = photo ? import.meta.env.VITE_API_BASE + photo.url : null
   const conditionTone = {
     Mint: 'bg-toydb-success-pale text-toydb-success',
     'Near Mint': 'bg-toydb-teal-pale text-toydb-teal-dark',
@@ -13,10 +18,37 @@ export default function ToyCard({ toy, onDeleted }){
     Poor: 'bg-toydb-danger-pale text-toydb-danger'
   }
 
+  useEffect(() => {
+    if (!isPhotoOpen) return
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setIsPhotoOpen(false)
+      if (event.key === 'ArrowLeft' && photos.length > 1) {
+        setSelectedPhotoIndex((current) => (current - 1 + photos.length) % photos.length)
+      }
+      if (event.key === 'ArrowRight' && photos.length > 1) {
+        setSelectedPhotoIndex((current) => (current + 1) % photos.length)
+      }
+    }
+    document.addEventListener('keydown', closeOnEscape)
+    return () => document.removeEventListener('keydown', closeOnEscape)
+  }, [isPhotoOpen, photos.length])
+
   return (
     <div className="p-3 bg-toydb-white border border-toydb-border rounded-xl flex gap-3 items-stretch shadow-sm">
       <div className="w-24 h-24 bg-toydb-cream flex items-center justify-center overflow-hidden rounded-lg">
-        {toy.photos && toy.photos[0] ? <img src={import.meta.env.VITE_API_BASE + toy.photos[0].url} alt={toy.photos[0].name} className="object-cover w-full h-full"/> : <div className="text-xs text-toydb-slate">No photo</div>}
+        {photo ? (
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedPhotoIndex(0)
+              setIsPhotoOpen(true)
+            }}
+            className="w-full h-full cursor-zoom-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-toydb-teal"
+            aria-label={`Enlarge photo of ${toy.name}`}
+          >
+            <img src={photoUrl} alt={photo.name} className="object-contain w-full h-full" />
+          </button>
+        ) : <div className="text-xs text-toydb-slate">No photo</div>}
       </div>
 
       <div className="flex-1 flex flex-col">
@@ -71,6 +103,48 @@ export default function ToyCard({ toy, onDeleted }){
           )}
         </div>
       </div>
+
+      {isPhotoOpen && photo && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-toydb-navy/80 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${toy.name} photo`}
+          onClick={() => setIsPhotoOpen(false)}
+        >
+          <div className="relative flex max-h-[85vh] w-full max-w-5xl items-center justify-center gap-2" onClick={(event) => event.stopPropagation()}>
+            {photos.length > 1 && (
+              <button
+                type="button"
+                onClick={() => setSelectedPhotoIndex((current) => (current - 1 + photos.length) % photos.length)}
+                className="z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-toydb-teal-light bg-toydb-teal p-0 text-2xl leading-none text-toydb-white shadow-md hover:bg-toydb-teal-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-toydb-cream"
+                aria-label="View previous photo"
+              >
+                &larr;
+              </button>
+            )}
+            <img src={photoUrl} alt={photo.name} className="h-auto min-w-0 max-h-[80vh] max-w-full flex-1 object-contain" />
+            {photos.length > 1 && (
+              <button
+                type="button"
+                onClick={() => setSelectedPhotoIndex((current) => (current + 1) % photos.length)}
+                className="z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-toydb-teal-light bg-toydb-teal p-0 text-2xl leading-none text-toydb-white shadow-md hover:bg-toydb-teal-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-toydb-cream"
+                aria-label="View next photo"
+              >
+                &rarr;
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setIsPhotoOpen(false)}
+              className="absolute right-2 top-2 flex h-10 w-10 items-center justify-center rounded-full border border-toydb-orange-light bg-toydb-orange p-0 text-xl leading-none text-toydb-white shadow-md hover:bg-toydb-orange-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-toydb-cream"
+              aria-label="Close enlarged photo"
+            >
+              &times;
+            </button>
+          </div>
+        </div>
+      )}
 
     </div>
   )

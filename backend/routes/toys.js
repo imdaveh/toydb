@@ -22,25 +22,6 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB
 
-async function ensureToyColumns() {
-  try {
-    // Try adding columns; ignore errors if they already exist
-    await pool.query("ALTER TABLE toys ADD COLUMN toyline VARCHAR(255)");
-  } catch (e) { /* ignore */ }
-  try {
-    await pool.query("ALTER TABLE toys ADD COLUMN `year` SMALLINT UNSIGNED");
-  } catch (e) { /* ignore */ }
-  try {
-    await pool.query("ALTER TABLE toys ADD COLUMN cost DECIMAL(10,2)");
-  } catch (e) { /* ignore */ }
-  try {
-    await pool.query("ALTER TABLE toys ADD COLUMN source VARCHAR(255)");
-  } catch (e) { /* ignore */ }
-  try {
-    await pool.query("ALTER TABLE toys ADD COLUMN notes TEXT");
-  } catch (e) { /* ignore */ }
-}
-
 // Create toy
 router.post('/', authenticate, upload.array('photos', 8), async (req, res) => {
   const userId = req.user.id;
@@ -60,23 +41,6 @@ router.post('/', authenticate, upload.array('photos', 8), async (req, res) => {
     res.json({ ok: true, id: toyId });
   } catch (err) {
     console.error('Insert error', err && err.code);
-    if (err && err.code === 'ER_BAD_FIELD_ERROR') {
-      try {
-        await ensureToyColumns();
-        const [result] = await pool.query(
-          'INSERT INTO toys (user_id, name, manufacturer, series, sub_series, toyline, `year`, cost, source, notes, accessories, `condition`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          [userId, name, manufacturer || null, series || null, sub_series || null, toyline || null, year ? parseInt(year) : null, (req.body.cost ? parseFloat(req.body.cost) : null), req.body.source || null, req.body.notes || null, accessories || null, condition || null]
-        );
-        const toyId = result.insertId;
-        const files = req.files || [];
-        for (const f of files) {
-          await pool.query('INSERT INTO toy_photos (toy_id, filename, original_name) VALUES (?, ?, ?)', [toyId, f.filename, f.originalname]);
-        }
-        return res.json({ ok: true, id: toyId });
-      } catch (e) {
-        console.error('Retry insert failed', e);
-      }
-    }
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -85,17 +49,7 @@ router.post('/', authenticate, upload.array('photos', 8), async (req, res) => {
 router.get('/', authenticate, async (req, res) => {
   const userId = req.user.id;
   try {
-    let toys;
-    try {
-      const [rows] = await pool.query('SELECT id, name, manufacturer, series, sub_series, toyline, `year`, cost, source, notes, accessories, `condition`, created_at FROM toys WHERE user_id = ?', [userId]);
-      toys = rows;
-    } catch (e) {
-      if (e && e.code === 'ER_BAD_FIELD_ERROR') {
-        await ensureToyColumns();
-        const [rows] = await pool.query('SELECT id, name, manufacturer, series, sub_series, toyline, `year`, cost, source, notes, accessories, `condition`, created_at FROM toys WHERE user_id = ?', [userId]);
-        toys = rows;
-      } else throw e;
-    }
+    const [toys] = await pool.query('SELECT id, name, manufacturer, series, sub_series, toyline, `year`, cost, source, notes, accessories, `condition`, created_at FROM toys WHERE user_id = ?', [userId]);
     // fetch photos for each toy
     for (const t of toys) {
       const [photos] = await pool.query('SELECT id, filename, original_name FROM toy_photos WHERE toy_id = ?', [t.id]);
@@ -113,15 +67,7 @@ router.get('/:id', authenticate, async (req, res) => {
   const userId = req.user.id;
   const id = req.params.id;
   try {
-    let rows;
-    try {
-      [rows] = await pool.query('SELECT id, name, manufacturer, series, sub_series, toyline, `year`, cost, source, notes, accessories, `condition`, created_at FROM toys WHERE id = ? AND user_id = ?', [id, userId]);
-    } catch (e) {
-      if (e && e.code === 'ER_BAD_FIELD_ERROR') {
-        await ensureToyColumns();
-        [rows] = await pool.query('SELECT id, name, manufacturer, series, sub_series, toyline, `year`, cost, source, notes, accessories, `condition`, created_at FROM toys WHERE id = ? AND user_id = ?', [id, userId]);
-      } else throw e;
-    }
+    const [rows] = await pool.query('SELECT id, name, manufacturer, series, sub_series, toyline, `year`, cost, source, notes, accessories, `condition`, created_at FROM toys WHERE id = ? AND user_id = ?', [id, userId]);
     if (!rows.length) return res.status(404).json({ error: 'Toy not found' });
     const toy = rows[0];
     const [photos] = await pool.query('SELECT id, filename, original_name FROM toy_photos WHERE toy_id = ?', [toy.id]);
@@ -140,15 +86,7 @@ router.put('/:id', authenticate, async (req, res) => {
   const { name, manufacturer, series, sub_series, toyline, year, accessories, condition, cost, source, notes } = req.body || {};
   if (!name) return res.status(400).json({ error: 'Name is required' });
   try {
-    let result;
-    try {
-      [result] = await pool.query('UPDATE toys SET name=?, manufacturer=?, series=?, sub_series=?, toyline=?, `year`=?, cost=?, source=?, notes=?, accessories=?, `condition`=? WHERE id=? AND user_id=?', [name, manufacturer || null, series || null, sub_series || null, toyline || null, year ? parseInt(year) : null, (cost ? parseFloat(cost) : null), source || null, notes || null, accessories || null, condition || null, id, userId]);
-    } catch (e) {
-      if (e && e.code === 'ER_BAD_FIELD_ERROR') {
-        await ensureToyColumns();
-        [result] = await pool.query('UPDATE toys SET name=?, manufacturer=?, series=?, sub_series=?, toyline=?, `year`=?, cost=?, source=?, notes=?, accessories=?, `condition`=? WHERE id=? AND user_id=?', [name, manufacturer || null, series || null, sub_series || null, toyline || null, year ? parseInt(year) : null, (cost ? parseFloat(cost) : null), source || null, notes || null, accessories || null, condition || null, id, userId]);
-      } else throw e;
-    }
+    const [result] = await pool.query('UPDATE toys SET name=?, manufacturer=?, series=?, sub_series=?, toyline=?, `year`=?, cost=?, source=?, notes=?, accessories=?, `condition`=? WHERE id=? AND user_id=?', [name, manufacturer || null, series || null, sub_series || null, toyline || null, year ? parseInt(year) : null, (cost ? parseFloat(cost) : null), source || null, notes || null, accessories || null, condition || null, id, userId]);
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Toy not found' });
     res.json({ ok: true });
   } catch (err) {

@@ -8,7 +8,7 @@ export default function EditToy(){
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [form, setForm] = useState({})
-  const [photosFiles, setPhotosFiles] = useState(null)
+  const [photosFiles, setPhotosFiles] = useState([])
   const [busy, setBusy] = useState(false)
 
   async function getToken(){
@@ -179,7 +179,33 @@ export default function EditToy(){
 
         <div>
           <label className="block text-sm text-toydb-slate mb-1">Add Photos</label>
-          <input type="file" multiple accept="image/*" onChange={e=>setPhotosFiles(e.target.files)} />
+          <input
+            type="file"
+            multiple
+            accept="image/*"
+            onChange={e => {
+              const selectedFiles = Array.from(e.target.files || [])
+              e.target.value = ''
+              setPhotosFiles(current => [...current, ...selectedFiles])
+            }}
+          />
+          {photosFiles.length > 0 && (
+            <div className="mt-2 space-y-1 text-sm text-toydb-slate">
+              <div className="font-medium text-toydb-navy">Photos to upload:</div>
+              {photosFiles.map((file, index) => (
+                <div key={`${file.name}-${file.lastModified}-${index}`} className="flex items-center justify-between gap-2">
+                  <span className="truncate">{file.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => setPhotosFiles(current => current.filter((_, fileIndex) => fileIndex !== index))}
+                    className="shrink-0 text-xs font-medium text-toydb-danger hover:text-toydb-orange-dark"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div>

@@ -1,24 +1,11 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 
 export default function Login(){
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [accessToken, setAccessToken] = useState(null)
   const [error, setError] = useState(null)
   const navigate = useNavigate()
-
-  useEffect(()=>{
-    // try refresh on load
-    fetch(import.meta.env.VITE_API_BASE + '/auth/refresh', { method: 'POST', credentials: 'include' })
-      .then(r => r.json())
-      .then(data => {
-        if (data.accessToken) {
-          setAccessToken(data.accessToken)
-          navigate('/dashboard', { state: { accessToken: data.accessToken } })
-        }
-      }).catch(()=>{})
-  },[])
 
   async function submit(e){
     e.preventDefault(); setError(null)
@@ -29,7 +16,6 @@ export default function Login(){
       })
       const data = await res.json()
       if (!res.ok) return setError(data.error || 'Login failed')
-      setAccessToken(data.accessToken)
       navigate('/dashboard', { state: { accessToken: data.accessToken } })
     } catch (err) {
       setError('Unable to reach the ToyDB server. Check that the backend is running.')
@@ -38,8 +24,9 @@ export default function Login(){
 
   return (
     <div className="max-w-md mx-auto">
-      <div className="flex flex-col items-center mb-6">
-        <img src="/logo.png" alt="ToyDB logo" className="h-20 md:h-24 lg:h-32 w-auto" />
+      <div className="mb-8 flex flex-col items-center">
+        <img src="/logo.png" alt="ToyDB logo" className="h-28 w-auto sm:h-32 md:h-36" />
+        <div className="mt-2 text-xs font-bold uppercase tracking-[0.3em] text-toydb-teal-dark">Toy collection manager</div>
       </div>
 
       <form onSubmit={submit} className="space-y-4">

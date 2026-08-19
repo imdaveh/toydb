@@ -42,7 +42,7 @@ router.post('/register', async (req, res) => {
     const accessToken = signAccess(user);
     res.json({ accessToken, user: { id: user.id, email: user.email } });
   } catch (err) {
-    console.error(err);
+    console.error('Register error:', err && { code: err.code, message: err.message, sqlMessage: err.sqlMessage });
     res.status(500).json({ error: 'Server error' });
   }
 });

@@ -16,21 +16,24 @@ export default function App(){
   }
 
   return (
-    <div className="min-h-screen bg-toydb-cream text-toydb-navy flex items-center justify-center p-4">
-      <div className="w-full max-w-lg bg-toydb-white border border-toydb-border rounded-2xl shadow-lg shadow-toydb-navy/10 p-6">
+    <div className="min-h-screen bg-toydb-cream text-toydb-navy">
+      <div className={`mx-auto min-h-screen w-full ${isLogin ? 'max-w-lg p-4 flex items-center' : 'max-w-4xl'}`}>
         { !isLogin ? (
-          <header className="flex justify-between items-center mb-4">
-            <div className="flex items-end">
-              <img src="/logo.png" alt="ToyDB logo" className="h-14 md:h-[4.5rem] lg:h-[5.5rem] w-auto" />
+          <header className="flex items-center justify-between border-b-4 border-toydb-orange bg-toydb-navy px-4 py-4 shadow-lg shadow-toydb-navy/20 md:px-6 md:py-5">
+            <div className="flex items-center gap-3">
+              <img src="/logo.png" alt="ToyDB logo" className="h-16 w-auto md:h-20" />
+              <div className="hidden border-l border-toydb-navy-light pl-3 sm:block">
+                <div className="text-xs uppercase tracking-widest text-toydb-teal-light">Collection</div>
+                <div className="font-bold text-toydb-white">ToyDB</div>
+              </div>
             </div>
-            <nav className="space-x-3 text-sm">
-              <Link to="/add" className="inline-block bg-toydb-teal text-toydb-white font-medium px-3 py-2 rounded-lg hover:bg-toydb-teal-dark">Add Toy</Link>
-              <span className="text-toydb-border px-1">|</span>
-              <button onClick={logout} className="text-sm text-toydb-danger hover:text-toydb-orange-dark">Logout</button>
+            <nav className="flex items-center gap-3 text-sm">
+              <Link to="/add" className="rounded-lg bg-toydb-teal px-3 py-2 font-medium text-toydb-white shadow-sm hover:bg-toydb-teal-dark">+ Add Toy</Link>
+              <button onClick={logout} className="font-medium text-toydb-cream hover:text-toydb-orange-light">Logout</button>
             </nav>
           </header>
         ) : null }
-        <main>
+        <main className={isLogin ? 'w-full rounded-2xl border border-toydb-border bg-toydb-white p-6 shadow-lg shadow-toydb-navy/10' : 'min-h-[calc(100vh-5.5rem)] bg-toydb-cream px-4 py-6 md:px-8 md:py-8'}>
           <Outlet />
         </main>
       </div>
