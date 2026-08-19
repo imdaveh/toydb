@@ -9,8 +9,8 @@ export default function AddToy(){
   }
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-medium">Add a New Toy</h2>
-      <div className="p-4 bg-white border rounded">
+      <h2 className="text-lg font-bold">Add a New Toy</h2>
+      <div className="p-4 bg-toydb-white border border-toydb-border rounded-xl shadow-sm">
         <ToyForm onCreated={onCreated} onCancel={() => navigate('/dashboard')} />
       </div>
     </div>

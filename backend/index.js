@@ -10,6 +10,15 @@ const pool = require('./db');
 const app = express();
 const PORT = process.env.PORT || 4000;
 const FRONTEND = process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
+const allowedOrigins = new Set([
+  FRONTEND,
+  'http://localhost:5173',
+  'http://localhost:4173',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:4173',
+  'http://[::1]:5173',
+  'http://[::1]:4173'
+]);
 
 if (!process.env.ACCESS_TOKEN_SECRET || !process.env.REFRESH_TOKEN_SECRET) {
   console.warn('Warning: ACCESS_TOKEN_SECRET or REFRESH_TOKEN_SECRET not set. Use .env file based on .env.example');
@@ -17,7 +26,13 @@ if (!process.env.ACCESS_TOKEN_SECRET || !process.env.REFRESH_TOKEN_SECRET) {
 
 app.use(express.json());
 app.use(cookieParser());
-app.use(cors({ origin: FRONTEND, credentials: true }));
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+    return callback(new Error('Origin not allowed by CORS'));
+  },
+  credentials: true
+}));
 
 // serve uploaded images
 app.use('/uploads', express.static(require('path').join(__dirname, 'uploads')));

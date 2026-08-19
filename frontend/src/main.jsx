@@ -9,6 +9,10 @@ import Dashboard from './pages/Dashboard'
 import AddToy from './pages/AddToy'
 import EditToy from './pages/EditToy'
 
+import { registerSW } from 'virtual:pwa-register'
+
+registerSW({ immediate: true })
+
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>

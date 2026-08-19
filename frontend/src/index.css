@@ -2,6 +2,25 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Mobile-first small tweaks */
-body { -webkit-font-smoothing: antialiased; }
-input:focus { outline: none; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+body {
+	background: #FFF8E8;
+	color: #142B3A;
+	-webkit-font-smoothing: antialiased;
+}
+
+input:focus, textarea:focus, select:focus {
+	outline: none;
+	border-color: #3FA9B8;
+	box-shadow: 0 0 0 3px rgba(63, 169, 184, 0.18);
+}
+
+input:not([type="file"]), textarea, select {
+	background: #FFFCF4;
+	border-color: #D9D0BD;
+	color: #142B3A;
+}
+
+input::placeholder, textarea::placeholder { color: #8CA1A6; }
+
+button, a, input, textarea, select { transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease; }
+button:disabled { cursor: not-allowed; opacity: 0.6; }

@@ -16,18 +16,17 @@ export default function App(){
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900 flex items-center justify-center p-4">
-      <div className="w-full max-w-lg bg-white rounded-xl shadow-md p-6">
+    <div className="min-h-screen bg-toydb-cream text-toydb-navy flex items-center justify-center p-4">
+      <div className="w-full max-w-lg bg-toydb-white border border-toydb-border rounded-2xl shadow-lg shadow-toydb-navy/10 p-6">
         { !isLogin ? (
           <header className="flex justify-between items-center mb-4">
             <div className="flex items-end">
-              <img src="/logo.png" alt="ToyBox — Collection Manager" className="h-8 md:h-10 lg:h-12 w-auto mr-3" />
-              <h1 className="text-lg font-semibold leading-none mb-1">Collection Manager</h1>
+              <img src="/logo.png" alt="ToyDB logo" className="h-14 md:h-[4.5rem] lg:h-[5.5rem] w-auto" />
             </div>
             <nav className="space-x-3 text-sm">
-              <Link to="/add" className="text-blue-600">Add Toy</Link>
-              <span className="text-gray-400 px-1">|</span>
-              <button onClick={logout} className="text-sm text-red-600">Logout</button>
+              <Link to="/add" className="inline-block bg-toydb-teal text-toydb-white font-medium px-3 py-2 rounded-lg hover:bg-toydb-teal-dark">Add Toy</Link>
+              <span className="text-toydb-border px-1">|</span>
+              <button onClick={logout} className="text-sm text-toydb-danger hover:text-toydb-orange-dark">Logout</button>
             </nav>
           </header>
         ) : null }

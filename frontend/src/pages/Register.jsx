@@ -22,10 +22,11 @@ export default function Register(){
   return (
     <form onSubmit={submit} className="space-y-4">
       <h2 className="text-lg font-medium">Register</h2>
-      {error && <div className="text-red-600">{error}</div>}
-      <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email" className="w-full p-2 border rounded" />
-      <input value={password} onChange={e=>setPassword(e.target.value)} type="password" placeholder="Password (min 6)" className="w-full p-2 border rounded" />
-      <button className="w-full bg-green-600 text-white p-2 rounded">Create account</button>
+      <h2 className="text-lg font-bold">Register</h2>
+        {error && <div className="bg-toydb-danger-pale text-toydb-danger p-3 rounded-lg">{error}</div>}
+        <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email" className="w-full p-2 bg-toydb-white border border-toydb-border rounded-lg" />
+        <input value={password} onChange={e=>setPassword(e.target.value)} type="password" placeholder="Password (min 6)" className="w-full p-2 bg-toydb-white border border-toydb-border rounded-lg" />
+        <button className="w-full bg-toydb-orange text-toydb-white font-medium p-2 rounded-lg hover:bg-toydb-orange-dark">Create account</button>
     </form>
   )
 }
