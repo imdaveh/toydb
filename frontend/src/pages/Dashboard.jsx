@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import ToyCard from '../components/ToyCard'
 
 export default function Dashboard(){
@@ -76,6 +76,7 @@ export default function Dashboard(){
           <h3 className="text-2xl font-bold tracking-tight text-toydb-navy">My Collection</h3>
           <p className="mt-1 text-sm text-toydb-slate">Keep every favorite in one place.</p>
         </div>
+        {user.isAdmin && <Link to="/admin/users" state={{ accessToken }} className="self-start border border-toydb-teal bg-toydb-teal-pale px-3 py-2 text-sm font-medium text-toydb-teal-dark hover:bg-toydb-teal hover:text-toydb-white sm:self-auto">Review members</Link>}
       </section>
 
       <section className="grid grid-cols-3 gap-2 sm:gap-3" aria-label="Collection summary">

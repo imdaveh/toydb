@@ -4,7 +4,7 @@ import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom'
 export default function App(){
   const navigate = useNavigate()
   const location = useLocation()
-  const isLogin = location.pathname === '/'
+  const isPublicPage = location.pathname === '/' || location.pathname === '/register'
 
   async function logout(){
     try{
@@ -17,8 +17,8 @@ export default function App(){
 
   return (
     <div className="min-h-screen bg-toydb-cream text-toydb-navy">
-      <div className={`mx-auto min-h-screen w-full ${isLogin ? 'max-w-lg p-4 flex items-center' : 'max-w-4xl'}`}>
-        { !isLogin ? (
+      <div className={`mx-auto min-h-screen w-full ${isPublicPage ? 'max-w-lg p-4 flex items-center' : 'max-w-4xl'}`}>
+        { !isPublicPage ? (
           <header className="flex items-center justify-between border-b-4 border-toydb-orange bg-toydb-navy px-4 py-4 shadow-lg shadow-toydb-navy/20 md:px-6 md:py-5">
             <div className="flex items-center gap-3">
               <img src="/logo.png" alt="ToyDB logo" className="h-16 w-auto md:h-20" />
@@ -33,7 +33,7 @@ export default function App(){
             </nav>
           </header>
         ) : null }
-        <main className={isLogin ? 'w-full rounded-2xl border border-toydb-border bg-toydb-white p-6 shadow-lg shadow-toydb-navy/10' : 'min-h-[calc(100vh-5.5rem)] bg-toydb-cream px-4 py-6 md:px-8 md:py-8'}>
+        <main className={isPublicPage ? 'w-full rounded-2xl border border-toydb-border bg-toydb-white p-6 shadow-lg shadow-toydb-navy/10' : 'min-h-[calc(100vh-5.5rem)] bg-toydb-cream px-4 py-6 md:px-8 md:py-8'}>
           <Outlet />
         </main>
       </div>

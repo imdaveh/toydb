@@ -18,13 +18,17 @@ Testing the PWA locally
 1. Start the backend in one terminal:
    - cd backend
    - npm start
-2. Build the frontend so Vite generates the PWA service worker:
+2. Build the frontend in development mode so it targets the local backend and Vite generates the PWA service worker:
    - cd frontend
-   - npm run build
+   - npm run build -- --mode development
 3. Serve the production build in another terminal:
    - cd frontend
    - npm run preview
 4. Open the preview URL, normally http://localhost:4173.
+
+`npm run build` uses `.env.production`, which points to the hosted API. Use
+`npm run build -- --mode development` when previewing locally so
+`VITE_API_BASE` resolves to `http://localhost:4000` from `.env`.
 
 The Vite development server is useful for normal UI work, but the installable PWA
 service worker is generated and tested through the production build and preview.
