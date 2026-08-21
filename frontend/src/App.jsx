@@ -1,10 +1,36 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom'
 
 export default function App(){
   const navigate = useNavigate()
   const location = useLocation()
+  const [user, setUser] = useState(null)
   const isPublicPage = location.pathname === '/' || location.pathname === '/register'
+
+  useEffect(() => {
+    if (isPublicPage) {
+      setUser(null)
+      return
+    }
+
+    async function loadUser(){
+      try {
+        const refreshResponse = await fetch(import.meta.env.VITE_API_BASE + '/auth/refresh', { method: 'POST', credentials: 'include' })
+        const refreshData = await refreshResponse.json()
+        if (!refreshResponse.ok || !refreshData.accessToken) return
+
+        const response = await fetch(import.meta.env.VITE_API_BASE + '/dashboard', {
+          headers: { Authorization: 'Bearer ' + refreshData.accessToken }
+        })
+        const data = await response.json()
+        if (response.ok) setUser(data.user)
+      } catch (error) {
+        setUser(null)
+      }
+    }
+
+    loadUser()
+  }, [isPublicPage])
 
   async function logout(){
     try{
@@ -12,6 +38,7 @@ export default function App(){
     } catch (e) {
       // ignore errors
     }
+    setUser(null)
     navigate('/')
   }
 
@@ -27,9 +54,11 @@ export default function App(){
                 <div className="font-bold text-toydb-white">ToyDB</div>
               </div>
             </div>
-            <nav className="flex items-center gap-3 text-sm">
-              <Link to="/add" className="rounded-lg bg-toydb-teal px-3 py-2 font-medium text-toydb-white shadow-sm hover:bg-toydb-teal-dark">+ Add Toy</Link>
+            <nav className="flex flex-wrap items-center justify-end gap-3 text-sm">
+              <Link to="/dashboard" className="font-medium text-toydb-cream hover:text-toydb-orange-light">Collection</Link>
+              <Link to="/wishlist" className="font-medium text-toydb-cream hover:text-toydb-orange-light">Wishlist</Link>
               <Link to="/account" className="font-medium text-toydb-cream hover:text-toydb-orange-light">Account</Link>
+              {user?.isAdmin && <Link to="/admin/users" className="font-medium text-toydb-cream hover:text-toydb-orange-light">Review</Link>}
               <button onClick={logout} className="font-medium text-toydb-cream hover:text-toydb-orange-light">Logout</button>
             </nav>
           </header>

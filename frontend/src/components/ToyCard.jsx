@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-export default function ToyCard({ toy, onDeleted }){
+export default function ToyCard({ toy, allowDelete = false, onDeleted }){
   const navigate = useNavigate()
   const [expanded, setExpanded] = useState(false)
   const [isPhotoOpen, setIsPhotoOpen] = useState(false)
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0)
+  const [actionError, setActionError] = useState(null)
+  const [deleting, setDeleting] = useState(false)
   const photos = toy.photos || []
   const photo = photos[selectedPhotoIndex]
   const photoUrl = photo ? import.meta.env.VITE_API_BASE + photo.url : null
@@ -33,6 +35,28 @@ export default function ToyCard({ toy, onDeleted }){
     return () => document.removeEventListener('keydown', closeOnEscape)
   }, [isPhotoOpen, photos.length])
 
+  async function deleteToy(){
+    if (!window.confirm(`Delete ${toy.name} from your wishlist? This cannot be undone.`)) return
+    setDeleting(true)
+    setActionError(null)
+    try {
+      const refresh = await fetch(import.meta.env.VITE_API_BASE + '/auth/refresh', { method: 'POST', credentials: 'include' })
+      const { accessToken } = await refresh.json()
+      if (!refresh.ok || !accessToken) throw new Error('Not authenticated')
+
+      const response = await fetch(import.meta.env.VITE_API_BASE + '/toys/' + toy.id, {
+        method: 'DELETE',
+        headers: { Authorization: 'Bearer ' + accessToken }
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Unable to delete wishlist toy')
+      onDeleted?.()
+    } catch (error) {
+      setActionError(error.message || 'Unable to delete wishlist toy')
+    }
+    setDeleting(false)
+  }
+
   return (
     <div className="p-3 bg-toydb-white border border-toydb-border rounded-xl flex gap-3 items-stretch shadow-sm">
       <div className="w-24 h-24 bg-toydb-cream flex items-center justify-center overflow-hidden rounded-lg">
@@ -52,6 +76,7 @@ export default function ToyCard({ toy, onDeleted }){
       </div>
 
       <div className="flex-1 flex flex-col">
+        {actionError && <div className="mb-2 text-sm text-toydb-danger">{actionError}</div>}
         {/* 1) Name */}
         <div className="font-bold text-toydb-navy">{toy.name}</div>
 
@@ -91,12 +116,14 @@ export default function ToyCard({ toy, onDeleted }){
           { !expanded ? (
             <>
               <button onClick={()=>navigate('/toys/' + toy.id + '/edit')} className="text-sm font-medium text-toydb-teal-dark hover:text-toydb-orange-dark">Edit</button>
+              {allowDelete && <><span className="text-toydb-border px-1">|</span><button type="button" onClick={deleteToy} disabled={deleting} className="text-sm font-medium text-toydb-danger hover:text-toydb-orange-dark disabled:cursor-not-allowed disabled:opacity-60">{deleting ? 'Deleting...' : 'Delete'}</button></>}
               <span className="text-toydb-border px-1">|</span>
               <button onClick={()=>setExpanded(true)} className="text-sm font-medium text-toydb-teal-dark hover:text-toydb-orange-dark">More</button>
             </>
           ) : (
             <>
               <button onClick={()=>navigate('/toys/' + toy.id + '/edit')} className="text-sm font-medium text-toydb-teal-dark hover:text-toydb-orange-dark">Edit</button>
+              {allowDelete && <><span className="text-toydb-border px-1">|</span><button type="button" onClick={deleteToy} disabled={deleting} className="text-sm font-medium text-toydb-danger hover:text-toydb-orange-dark disabled:cursor-not-allowed disabled:opacity-60">{deleting ? 'Deleting...' : 'Delete'}</button></>}
               <span className="text-toydb-border px-1">|</span>
               <button onClick={()=>setExpanded(false)} className="text-sm text-toydb-slate hover:text-toydb-navy">Less</button>
             </>

@@ -71,13 +71,13 @@ router.get('/suggestions', authenticate, async (req, res) => {
 // Create toy
 router.post('/', authenticate, upload.array('photos', 8), async (req, res) => {
   const userId = req.user.id;
-  const { name, manufacturer, series, sub_series, toyline, year, accessories, missing, condition, grade, cost, value, source, notes } = req.body || {};
+  const { name, manufacturer, series, sub_series, toyline, year, accessories, missing, condition, grade, cost, value, source, notes, wishlist } = req.body || {};
   if (!name) return res.status(400).json({ error: 'Name is required' });
   try {
     const photos = await preparePhotos(req.files || []);
     const [result] = await pool.query(
-      'INSERT INTO toys (user_id, name, manufacturer, series, sub_series, toyline, `year`, cost, `value`, source, notes, accessories, missing, `condition`, grade) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [userId, name, manufacturer || null, series || null, sub_series || null, toyline || null, year ? parseInt(year) : null, cost ? parseFloat(cost) : null, value ? parseFloat(value) : null, source || null, notes || null, accessories || null, missing || null, condition || null, grade || null]
+      'INSERT INTO toys (user_id, is_wishlist, name, manufacturer, series, sub_series, toyline, `year`, cost, `value`, source, notes, accessories, missing, `condition`, grade) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [userId, wishlist === 'true' || wishlist === true, name, manufacturer || null, series || null, sub_series || null, toyline || null, year ? parseInt(year) : null, cost ? parseFloat(cost) : null, value ? parseFloat(value) : null, source || null, notes || null, accessories || null, missing || null, condition || null, grade || null]
     );
     const toyId = result.insertId;
     await savePhotos(toyId, photos);
@@ -91,8 +91,9 @@ router.post('/', authenticate, upload.array('photos', 8), async (req, res) => {
 // Get all toys for user
 router.get('/', authenticate, async (req, res) => {
   const userId = req.user.id;
+  const wishlist = req.query.wishlist === 'true' ? 1 : 0;
   try {
-    const [toys] = await pool.query('SELECT id, name, manufacturer, series, sub_series, toyline, `year`, cost, `value`, source, notes, accessories, missing, `condition`, grade, created_at FROM toys WHERE user_id = ?', [userId]);
+    const [toys] = await pool.query('SELECT id, is_wishlist, name, manufacturer, series, sub_series, toyline, `year`, cost, `value`, source, notes, accessories, missing, `condition`, grade, created_at FROM toys WHERE user_id = ? AND is_wishlist = ?', [userId, wishlist]);
     // fetch photos for each toy
     for (const t of toys) {
       const [photos] = await pool.query('SELECT id, filename, original_name FROM toy_photos WHERE toy_id = ?', [t.id]);
@@ -110,7 +111,7 @@ router.get('/:id', authenticate, async (req, res) => {
   const userId = req.user.id;
   const id = req.params.id;
   try {
-    const [rows] = await pool.query('SELECT id, name, manufacturer, series, sub_series, toyline, `year`, cost, `value`, source, notes, accessories, missing, `condition`, grade, created_at FROM toys WHERE id = ? AND user_id = ?', [id, userId]);
+    const [rows] = await pool.query('SELECT id, is_wishlist, name, manufacturer, series, sub_series, toyline, `year`, cost, `value`, source, notes, accessories, missing, `condition`, grade, created_at FROM toys WHERE id = ? AND user_id = ?', [id, userId]);
     if (!rows.length) return res.status(404).json({ error: 'Toy not found' });
     const toy = rows[0];
     const [photos] = await pool.query('SELECT id, filename, original_name FROM toy_photos WHERE toy_id = ?', [toy.id]);
@@ -131,6 +132,20 @@ router.put('/:id', authenticate, async (req, res) => {
   try {
     const [result] = await pool.query('UPDATE toys SET name=?, manufacturer=?, series=?, sub_series=?, toyline=?, `year`=?, cost=?, `value`=?, source=?, notes=?, accessories=?, missing=?, `condition`=?, grade=? WHERE id=? AND user_id=?', [name, manufacturer || null, series || null, sub_series || null, toyline || null, year ? parseInt(year) : null, cost ? parseFloat(cost) : null, value ? parseFloat(value) : null, source || null, notes || null, accessories || null, missing || null, condition || null, grade || null, id, userId]);
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Toy not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Move a wishlist toy into the user's collection without changing its details.
+router.patch('/:id/move-to-collection', authenticate, async (req, res) => {
+  const userId = req.user.id;
+  const id = req.params.id;
+  try {
+    const [result] = await pool.query('UPDATE toys SET is_wishlist = 0 WHERE id = ? AND user_id = ? AND is_wishlist = 1', [id, userId]);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Wishlist toy not found' });
     res.json({ ok: true });
   } catch (err) {
     console.error(err);

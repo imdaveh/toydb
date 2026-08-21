@@ -7,6 +7,7 @@ import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import AddToy from './pages/AddToy'
+import Wishlist from './pages/Wishlist'
 import EditToy from './pages/EditToy'
 import AdminUsers from './pages/AdminUsers'
 import Account from './pages/Account'
@@ -24,6 +25,8 @@ createRoot(document.getElementById('root')).render(
           <Route path="register" element={<Register />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="add" element={<AddToy />} />
+          <Route path="wishlist" element={<Wishlist />} />
+          <Route path="wishlist/add" element={<AddToy wishlist />} />
           <Route path="toys/:id/edit" element={<EditToy />} />
           <Route path="account" element={<Account />} />
           <Route path="admin/users" element={<AdminUsers />} />
