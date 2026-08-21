@@ -58,23 +58,6 @@ const csvUpload = multer({
 
 const importColumns = ['name', 'manufacturer', 'series', 'sub_series', 'toyline', 'year', 'cost', 'value', 'source', 'notes', 'included', 'missing', 'broken', 'condition', 'tags', 'wishlist'];
 
-async function getToySchema() {
-  const [columns] = await pool.query('SHOW COLUMNS FROM toys');
-  const fields = new Set(columns.map(column => column.Field));
-  return {
-    hasIncluded: fields.has('included'),
-    hasAccessories: fields.has('accessories'),
-    hasBroken: fields.has('broken')
-  };
-}
-
-function normalizeToyTextFields(toy) {
-  if (!toy) return toy;
-  if (toy.included === undefined && toy.accessories !== undefined) toy.included = toy.accessories;
-  if (toy.broken === undefined) toy.broken = '';
-  return toy;
-}
-
 // Replace a toy's tag assignments with the given list of tag ids.
 async function setToyTags(toyId, tagIds) {
   const ids = [...new Set((Array.isArray(tagIds) ? tagIds : []).map(id => parseInt(id, 10)).filter(Number.isInteger))];
@@ -153,28 +136,14 @@ router.get('/suggestions', authenticate, async (req, res) => {
 // Create toy
 router.post('/', authenticate, upload.array('photos', 8), async (req, res) => {
   const userId = req.user.id;
-  const { name, manufacturer, series, sub_series, toyline, year, included, accessories, missing, broken, condition, cost, value, source, notes, wishlist, tags } = req.body || {};
-  const includedValue = included !== undefined ? included : accessories;
+  const { name, manufacturer, series, sub_series, toyline, year, included, missing, broken, condition, cost, value, source, notes, wishlist, tags } = req.body || {};
   if (!name) return res.status(400).json({ error: 'Name is required' });
   try {
-    const { hasIncluded, hasAccessories, hasBroken } = await getToySchema();
     const photos = await preparePhotos(req.files || []);
-    const fieldNames = ['user_id', 'is_wishlist', 'name', 'manufacturer', 'series', 'sub_series', 'toyline', '`year`', 'cost', '`value`', 'source', 'notes'];
-    const fieldValues = [userId, wishlist === 'true' || wishlist === true, name, manufacturer || null, series || null, sub_series || null, toyline || null, year ? parseInt(year) : null, cost ? parseFloat(cost) : null, value ? parseFloat(value) : null, source || null, notes || null];
-    if (hasIncluded || hasAccessories) {
-      fieldNames.push(hasIncluded ? 'included' : 'accessories');
-      fieldValues.push(includedValue || null);
-    }
-    if (hasBroken) {
-      fieldNames.push('broken');
-      fieldValues.push(broken || null);
-    }
-    fieldNames.push('missing');
-    fieldValues.push(missing || null);
-    fieldNames.push('`condition`');
-    fieldValues.push(condition || null);
-    const placeholders = fieldNames.map(() => '?').join(', ');
-    const [result] = await pool.query(`INSERT INTO toys (${fieldNames.join(', ')}) VALUES (${placeholders})`, fieldValues);
+    const [result] = await pool.query(
+      'INSERT INTO toys (user_id, is_wishlist, name, manufacturer, series, sub_series, toyline, `year`, cost, `value`, source, notes, included, missing, broken, `condition`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [userId, wishlist === 'true' || wishlist === true, name, manufacturer || null, series || null, sub_series || null, toyline || null, year ? parseInt(year) : null, cost ? parseFloat(cost) : null, value ? parseFloat(value) : null, source || null, notes || null, included || null, missing || null, broken || null, condition || null]
+    );
     const toyId = result.insertId;
     await setToyTags(toyId, parseTagIds(tags));
     await savePhotos(toyId, photos);
@@ -225,7 +194,7 @@ router.post('/import', authenticate, csvUpload.single('file'), async (req, res) 
 
     if (!record.name) { errors.push({ row: rowNumber, error: 'Name is required' }); continue; }
 
-    const includedValue = (record.included !== undefined && record.included !== '') ? record.included : (record.accessories || '');
+    const includedValue = record.included || '';
     const brokenValue = record.broken || '';
     const year = record.year ? parseInt(record.year, 10) : null;
     if (record.year && Number.isNaN(year)) { errors.push({ row: rowNumber, error: 'Year must be a number' }); continue; }
@@ -244,20 +213,10 @@ router.post('/import', authenticate, csvUpload.single('file'), async (req, res) 
     }
 
     try {
-      const { hasIncluded, hasAccessories, hasBroken } = await getToySchema();
-      const fieldNames = ['user_id', 'is_wishlist', 'name', 'manufacturer', 'series', 'sub_series', 'toyline', '`year`', 'cost', '`value`', 'source', 'notes'];
-      const fieldValues = [userId, isWishlist, record.name, record.manufacturer || null, record.series || null, record.sub_series || null, record.toyline || null, year, cost, value, record.source || null, record.notes || null];
-      if (hasIncluded || hasAccessories) {
-        fieldNames.push(hasIncluded ? 'included' : 'accessories');
-        fieldValues.push(includedValue || null);
-      }
-      if (hasBroken) {
-        fieldNames.push('broken');
-        fieldValues.push(brokenValue || null);
-      }
-      fieldNames.push('missing', '`condition`');
-      fieldValues.push(record.missing || null, record.condition || null);
-      const [result] = await pool.query(`INSERT INTO toys (${fieldNames.join(', ')}) VALUES (${fieldNames.map(() => '?').join(', ')})`, fieldValues);
+      const [result] = await pool.query(
+        'INSERT INTO toys (user_id, is_wishlist, name, manufacturer, series, sub_series, toyline, `year`, cost, `value`, source, notes, included, missing, broken, `condition`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [userId, isWishlist, record.name, record.manufacturer || null, record.series || null, record.sub_series || null, record.toyline || null, year, cost, value, record.source || null, record.notes || null, includedValue || null, record.missing || null, brokenValue || null, record.condition || null]
+      );
       await setToyTags(result.insertId, tagIds);
       if (unknownTagNames.length) errors.push({ row: rowNumber, error: `Imported, but ignored unknown tags: ${unknownTagNames.join(', ')}` });
       imported++;
@@ -275,13 +234,9 @@ router.get('/', authenticate, async (req, res) => {
   const userId = req.user.id;
   const wishlist = req.query.wishlist === 'true' ? 1 : 0;
   try {
-    const { hasIncluded, hasAccessories, hasBroken } = await getToySchema();
-    const includedColumn = hasIncluded ? 'included' : (hasAccessories ? 'accessories' : 'NULL AS included');
-    const brokenColumn = hasBroken ? 'broken' : 'NULL AS broken';
-    const [toys] = await pool.query(`SELECT id, is_wishlist, name, manufacturer, series, sub_series, toyline, \`year\`, cost, \`value\`, source, notes, ${includedColumn}, missing, ${brokenColumn}, \`condition\`, created_at FROM toys WHERE user_id = ? AND is_wishlist = ?`, [userId, wishlist]);
+    const [toys] = await pool.query('SELECT id, is_wishlist, name, manufacturer, series, sub_series, toyline, `year`, cost, `value`, source, notes, included, missing, broken, `condition`, created_at FROM toys WHERE user_id = ? AND is_wishlist = ?', [userId, wishlist]);
     // fetch photos for each toy
     for (const t of toys) {
-      normalizeToyTextFields(t);
       const [photos] = await pool.query('SELECT id, filename, original_name FROM toy_photos WHERE toy_id = ?', [t.id]);
       t.photos = photos.map(p => ({ id: p.id, url: `/uploads/${p.filename}`, name: p.original_name }));
     }
@@ -298,12 +253,9 @@ router.get('/:id', authenticate, async (req, res) => {
   const userId = req.user.id;
   const id = req.params.id;
   try {
-    const { hasIncluded, hasAccessories, hasBroken } = await getToySchema();
-    const includedColumn = hasIncluded ? 'included' : (hasAccessories ? 'accessories' : 'NULL AS included');
-    const brokenColumn = hasBroken ? 'broken' : 'NULL AS broken';
-    const [rows] = await pool.query(`SELECT id, is_wishlist, name, manufacturer, series, sub_series, toyline, \`year\`, cost, \`value\`, source, notes, ${includedColumn}, missing, ${brokenColumn}, \`condition\`, created_at FROM toys WHERE id = ? AND user_id = ?`, [id, userId]);
+    const [rows] = await pool.query('SELECT id, is_wishlist, name, manufacturer, series, sub_series, toyline, `year`, cost, `value`, source, notes, included, missing, broken, `condition`, created_at FROM toys WHERE id = ? AND user_id = ?', [id, userId]);
     if (!rows.length) return res.status(404).json({ error: 'Toy not found' });
-    const toy = normalizeToyTextFields(rows[0]);
+    const toy = rows[0];
     const [photos] = await pool.query('SELECT id, filename, original_name FROM toy_photos WHERE toy_id = ?', [toy.id]);
     toy.photos = photos.map(p => ({ id: p.id, url: `/uploads/${p.filename}`, name: p.original_name }));
     await attachTags([toy]);
@@ -318,26 +270,10 @@ router.get('/:id', authenticate, async (req, res) => {
 router.put('/:id', authenticate, async (req, res) => {
   const userId = req.user.id;
   const id = req.params.id;
-  const { name, manufacturer, series, sub_series, toyline, year, included, accessories, missing, broken, condition, cost, value, source, notes, tags } = req.body || {};
-  const includedValue = included !== undefined ? included : accessories;
+  const { name, manufacturer, series, sub_series, toyline, year, included, missing, broken, condition, cost, value, source, notes, tags } = req.body || {};
   if (!name) return res.status(400).json({ error: 'Name is required' });
   try {
-    const { hasIncluded, hasAccessories, hasBroken } = await getToySchema();
-    const assignments = [
-      'name=?', 'manufacturer=?', 'series=?', 'sub_series=?', 'toyline=?', '`year`=?', 'cost=?', '`value`=?', 'source=?', 'notes=?'
-    ];
-    const values = [name, manufacturer || null, series || null, sub_series || null, toyline || null, year ? parseInt(year) : null, cost ? parseFloat(cost) : null, value ? parseFloat(value) : null, source || null, notes || null];
-    if (hasIncluded || hasAccessories) {
-      assignments.push((hasIncluded ? 'included' : 'accessories') + '=?');
-      values.push(includedValue || null);
-    }
-    if (hasBroken) {
-      assignments.push('broken=?');
-      values.push(broken || null);
-    }
-    assignments.push('missing=?', '`condition`=?');
-    values.push(missing || null, condition || null, id, userId);
-    const [result] = await pool.query(`UPDATE toys SET ${assignments.join(', ')} WHERE id=? AND user_id=?`, values);
+    const [result] = await pool.query('UPDATE toys SET name=?, manufacturer=?, series=?, sub_series=?, toyline=?, `year`=?, cost=?, `value`=?, source=?, notes=?, included=?, missing=?, broken=?, `condition`=? WHERE id=? AND user_id=?', [name, manufacturer || null, series || null, sub_series || null, toyline || null, year ? parseInt(year) : null, cost ? parseFloat(cost) : null, value ? parseFloat(value) : null, source || null, notes || null, included || null, missing || null, broken || null, condition || null, id, userId]);
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Toy not found' });
     await setToyTags(id, parseTagIds(tags));
     res.json({ ok: true });

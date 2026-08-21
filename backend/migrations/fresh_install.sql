@@ -1,10 +1,11 @@
--- Fresh ToyDB installation only. Do not run this against an existing production database.
--- In Hostinger phpMyAdmin, select a new empty database and import this file.
+-- Single full setup script for a brand-new ToyDB database.
+-- Run this in phpMyAdmin against a blank database or as a fresh database import.
+-- This script creates the entire schema for the current app.
 
 CREATE DATABASE IF NOT EXISTS toydb CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE toydb;
 
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   email VARCHAR(255) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
@@ -13,7 +14,7 @@ CREATE TABLE users (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE refresh_tokens (
+CREATE TABLE IF NOT EXISTS refresh_tokens (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   user_id INT UNSIGNED NOT NULL,
   token TEXT NOT NULL,
@@ -22,7 +23,7 @@ CREATE TABLE refresh_tokens (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE toys (
+CREATE TABLE IF NOT EXISTS toys (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   user_id INT UNSIGNED NOT NULL,
   is_wishlist BOOLEAN NOT NULL DEFAULT FALSE,
@@ -44,7 +45,7 @@ CREATE TABLE toys (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE toy_photos (
+CREATE TABLE IF NOT EXISTS toy_photos (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   toy_id INT UNSIGNED NOT NULL,
   filename VARCHAR(512) NOT NULL,
@@ -53,13 +54,13 @@ CREATE TABLE toy_photos (
   FOREIGN KEY (toy_id) REFERENCES toys(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE tags (
+CREATE TABLE IF NOT EXISTS tags (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(100) NOT NULL UNIQUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE toy_tags (
+CREATE TABLE IF NOT EXISTS toy_tags (
   toy_id INT UNSIGNED NOT NULL,
   tag_id INT UNSIGNED NOT NULL,
   PRIMARY KEY (toy_id, tag_id),
