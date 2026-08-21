@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import useToySuggestions from '../hooks/useToySuggestions'
+import useTags from '../hooks/useTags'
 import AutocompleteInput from '../components/AutocompleteInput'
+import TagPicker from '../components/TagPicker'
 
-const conditions = ['New Unopened', 'Sealed Box', 'On Card', 'Open Box', 'Complete', 'Loose']
-const grades = ['Excellent', 'Good', 'Fair', 'Poor', 'Broken']
+const conditions = ['Mint', 'Excellent', 'Good', 'Fair', 'Poor', 'Broken']
 
 export default function EditToy(){
   const { id } = useParams()
@@ -16,6 +17,7 @@ export default function EditToy(){
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const suggestions = useToySuggestions()
+  const allTags = useTags()
 
   async function getToken(){
     try {
@@ -36,8 +38,8 @@ export default function EditToy(){
       setForm({
         name: data.toy.name || '', manufacturer: data.toy.manufacturer || '', series: data.toy.series || '',
         sub_series: data.toy.sub_series || '', toyline: data.toy.toyline || '', year: data.toy.year || '',
-        accessories: data.toy.accessories || '', missing: data.toy.missing || '', notes: data.toy.notes || '',
-        condition: data.toy.condition || '', grade: data.toy.grade || '', cost: data.toy.cost || '',
+        included: data.toy.included || data.toy.accessories || '', missing: data.toy.missing || '', broken: data.toy.broken || '', notes: data.toy.notes || '',
+        condition: data.toy.condition || '', tagIds: (data.toy.tags || []).map(tag => tag.id), cost: data.toy.cost || '',
         value: data.toy.value || '', source: data.toy.source || ''
       })
     } catch (error) { setError('Server error') }
@@ -51,7 +53,7 @@ export default function EditToy(){
     const token = await getToken()
     if (!token) { setError('Not authenticated'); setBusy(false); return }
     try {
-      const response = await fetch(import.meta.env.VITE_API_BASE + '/toys/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify(form) })
+      const response = await fetch(import.meta.env.VITE_API_BASE + '/toys/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ ...form, tags: form.tagIds }) })
       const data = await response.json()
       if (!response.ok) { setError(data.error || 'Failed'); setBusy(false); return }
       if (photosFiles.length) {
@@ -122,13 +124,18 @@ export default function EditToy(){
         <Field label="Toyline"><AutocompleteInput value={form.toyline} suggestions={suggestions.toyline} onChange={value => updateField('toyline', value)} /></Field>
         <Field label="Series"><AutocompleteInput value={form.series} suggestions={suggestions.series} onChange={value => updateField('series', value)} /></Field>
         <Field label="Sub-series"><AutocompleteInput value={form.sub_series} suggestions={suggestions.sub_series} onChange={value => updateField('sub_series', value)} /></Field>
-        <Field label="Accessories"><textarea value={form.accessories} onChange={event => updateField('accessories', event.target.value)} className="w-full p-2 border rounded" /></Field>
-        <Field label="Missing"><textarea value={form.missing} onChange={event => updateField('missing', event.target.value)} className="w-full p-2 border rounded" /></Field>
-        <Field label="Notes"><textarea value={form.notes} onChange={event => updateField('notes', event.target.value)} className="w-full p-2 border rounded" /></Field>
-        <div className="flex gap-2"><Field label="Condition" className="flex-1"><Select value={form.condition} values={conditions} onChange={value => updateField('condition', value)} /></Field><Field label="Grade" className="flex-1"><Select value={form.grade} values={grades} onChange={value => updateField('grade', value)} /></Field></div>
-        <div className="flex gap-2"><Field label="Price" className="flex-1"><input value={form.cost} onChange={event => updateField('cost', event.target.value)} type="number" min="0" step="0.01" className="w-full p-2 border rounded" /></Field><Field label="Value" className="flex-1"><input value={form.value} onChange={event => updateField('value', event.target.value)} type="number" min="0" step="0.01" className="w-full p-2 border rounded" /></Field></div>
+        <Field label="Condition"><Select value={form.condition} values={conditions} onChange={value => updateField('condition', value)} /></Field>
+        <Field label="Tags"><TagPicker allTags={allTags} selectedTagIds={form.tagIds || []} onChange={value => updateField('tagIds', value)} /></Field>
+        <Field label="Notes"><textarea value={form.notes || ''} onChange={event => updateField('notes', event.target.value)} className="w-full p-2 border rounded" /></Field>
+        <Field label="Included"><textarea value={form.included || ''} onChange={event => updateField('included', event.target.value)} className="w-full p-2 border rounded" /></Field>
+        <Field label="Missing"><textarea value={form.missing || ''} onChange={event => updateField('missing', event.target.value)} className="w-full p-2 border rounded" /></Field>
+        <Field label="Broken"><textarea value={form.broken || ''} onChange={event => updateField('broken', event.target.value)} className="w-full p-2 border rounded" /></Field>
+        <div className="flex gap-2"><Field label="Cost" className="w-1/2"><input value={form.cost} onChange={event => updateField('cost', event.target.value)} type="number" min="0" step="0.01" className="w-full p-2 border rounded" /></Field><Field label="Value" className="w-1/2"><input value={form.value} onChange={event => updateField('value', event.target.value)} type="number" min="0" step="0.01" className="w-full p-2 border rounded" /></Field></div>
         <Field label="Source"><AutocompleteInput value={form.source} suggestions={suggestions.source} onChange={value => updateField('source', value)} /></Field>
-        <div><label className="block text-sm text-toydb-slate mb-1">Add Photos</label><input type="file" multiple accept="image/*" onChange={event => { setPhotosFiles(current => [...current, ...Array.from(event.target.files || [])]); event.target.value = '' }} />{photosFiles.map((file, index) => <div key={`${file.name}-${file.lastModified}-${index}`} className="flex items-center justify-between gap-2 text-sm"><span>{file.name}</span><button type="button" onClick={() => setPhotosFiles(current => current.filter((_, fileIndex) => fileIndex !== index))} className="text-toydb-danger">Remove</button></div>)}</div>
+        <div>
+          <label className="block text-sm text-toydb-slate mb-1">Add Photos</label>
+          <input type="file" multiple accept="image/*" onChange={event => setPhotosFiles(Array.from(event.target.files || []))} />
+        </div>
         <div><h4 className="font-semibold">Existing Photos</h4><div className="grid grid-cols-3 gap-2 mt-2">{toy.photos?.length ? toy.photos.map(photo => <div key={photo.id} className="relative w-24"><div className="w-24 h-24 bg-toydb-cream flex items-center justify-center overflow-hidden rounded-lg"><img src={import.meta.env.VITE_API_BASE + photo.url} alt={photo.name} className="object-contain w-full h-full" /></div><button onClick={() => deletePhoto(photo.id)} className="absolute top-1 right-1 bg-toydb-danger text-toydb-white text-xs px-2 py-0.5 rounded">Delete</button></div>) : <div className="text-sm text-toydb-slate">No photos</div>}</div></div>
         <div className="mt-3 space-y-2">
           <div className="grid grid-cols-3 gap-2"><button onClick={() => navigate(toy.is_wishlist ? '/wishlist' : '/dashboard', { state: { refresh: Date.now() } })} className="w-full border border-toydb-border bg-toydb-white p-2 text-toydb-navy rounded-lg">Cancel</button><button onClick={deleteToy} disabled={busy} className="w-full bg-toydb-danger p-2 text-toydb-white rounded-lg">Delete Toy</button><button onClick={save} disabled={busy} className="w-full bg-toydb-teal p-2 font-medium text-toydb-white rounded-lg">{busy ? 'Saving...' : 'Save Toy'}</button></div>

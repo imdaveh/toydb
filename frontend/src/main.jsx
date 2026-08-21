@@ -9,7 +9,7 @@ import Dashboard from './pages/Dashboard'
 import AddToy from './pages/AddToy'
 import Wishlist from './pages/Wishlist'
 import EditToy from './pages/EditToy'
-import AdminUsers from './pages/AdminUsers'
+import Admin from './pages/Admin'
 import Account from './pages/Account'
 
 import { registerSW } from 'virtual:pwa-register'
@@ -29,7 +29,7 @@ createRoot(document.getElementById('root')).render(
           <Route path="wishlist/add" element={<AddToy wishlist />} />
           <Route path="toys/:id/edit" element={<EditToy />} />
           <Route path="account" element={<Account />} />
-          <Route path="admin/users" element={<AdminUsers />} />
+          <Route path="admin" element={<Admin />} />
         </Route>
       </Routes>
     </BrowserRouter>

@@ -13,12 +13,13 @@ export default function ToyCard({ toy, allowDelete = false, onDeleted }){
   const photoUrl = photo ? import.meta.env.VITE_API_BASE + photo.url : null
   const conditionTone = {
     Mint: 'bg-toydb-success-pale text-toydb-success',
-    'Near Mint': 'bg-toydb-teal-pale text-toydb-teal-dark',
     Excellent: 'bg-toydb-teal-pale text-toydb-teal-dark',
     Good: 'bg-toydb-gold-pale text-toydb-gold-dark',
     Fair: 'bg-toydb-orange-pale text-toydb-orange-dark',
-    Poor: 'bg-toydb-danger-pale text-toydb-danger'
+    Poor: 'bg-toydb-danger-pale text-toydb-danger',
+    Broken: 'bg-toydb-border text-toydb-navy'
   }
+  const metaLine = [toy.series, toy.sub_series, toy.year, toy.manufacturer].filter(value => value !== null && value !== undefined && String(value).trim()).join(' • ')
 
   useEffect(() => {
     if (!isPhotoOpen) return
@@ -77,37 +78,40 @@ export default function ToyCard({ toy, allowDelete = false, onDeleted }){
 
       <div className="flex-1 flex flex-col">
         {actionError && <div className="mb-2 text-sm text-toydb-danger">{actionError}</div>}
-        {/* 1) Name */}
-        <div className="font-bold text-toydb-navy">{toy.name}</div>
+        {/* Name */}
+        <div className="font-bold text-toydb-navy line-clamp-2 break-words">{toy.name}</div>
 
-        {/* 2) Toyline (moved above year/manufacturer) */}
-        {toy.toyline && (
-          <div className="mt-1">
-            <span className="inline-block bg-toydb-teal-pale text-toydb-teal-dark text-xs font-medium px-2 py-0.5 rounded-full">{toy.toyline}</span>
+        {/* Toyline and condition share one compact wrapping pill row */}
+        {(toy.toyline || toy.condition) && (
+          <div className="mt-1 flex flex-wrap gap-1">
+            {toy.toyline && <span className="inline-block bg-toydb-teal-pale text-toydb-teal-dark text-xs font-medium px-2 py-0.5 rounded-full">{toy.toyline}</span>}
+            {toy.condition && <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full ${conditionTone[toy.condition] || 'bg-toydb-cream text-toydb-slate'}`}>{toy.condition}</span>}
           </div>
         )}
 
-        {/* 3) Series then Sub-series (moved above year/manufacturer) */}
-        <div className="mt-1 text-sm text-toydb-slate">
-          {toy.series && <span>{toy.series}</span>}
-          {toy.sub_series && toy.series ? <span className="mx-2">•</span> : toy.sub_series ? null : null}
-          {toy.sub_series && <span>{toy.sub_series}</span>}
-        </div>
+        {/* Tags get their own wrapping row since a toy can have many */}
+        {toy.tags?.length > 0 && (
+          <div className="mt-1 flex flex-wrap gap-1">
+            {toy.tags.map(tag => <span key={tag.id} className="inline-block bg-toydb-cream text-toydb-slate text-xs font-medium px-2 py-0.5 rounded-full">{tag.name}</span>)}
+          </div>
+        )}
 
-        {/* 4) Year then Manufacturer */}
-        <div className="mt-1 flex items-center gap-2 text-sm text-toydb-slate">
-          {toy.year ? <span className="">{toy.year}</span> : null}
-          {toy.manufacturer ? <span className="">{toy.manufacturer}</span> : null}
-        </div>
+        {/* Series, sub-series, year, and manufacturer collapse into a single wrapping line */}
+        {metaLine && <div className="mt-1 text-xs text-toydb-slate">{metaLine}</div>}
+
+        {!expanded && toy.notes && (
+          <div className="mt-1 text-xs text-toydb-slate"><span className="font-semibold text-toydb-navy">Notes:</span> {toy.notes}</div>
+        )}
 
         {expanded && (
           <>
-            <div className="text-sm mt-2">Condition: <span className={`inline-block px-2 py-0.5 rounded-full font-medium ${conditionTone[toy.condition] || 'bg-toydb-cream text-toydb-slate'}`}>{toy.condition || 'N/A'}</span></div>
+            {toy.notes && <div className="mt-2 text-xs text-toydb-slate"><span className="font-semibold text-toydb-navy">Notes:</span> {toy.notes}</div>}
+            <div className="mt-1 text-xs text-toydb-slate"><span className="font-semibold text-toydb-navy">Included:</span> {toy.included || toy.accessories || 'None'}</div>
+            <div className="mt-1 text-xs text-toydb-slate"><span className="font-semibold text-toydb-navy">Missing:</span> {toy.missing || 'None'}</div>
+            <div className="mt-1 text-xs text-toydb-slate"><span className="font-semibold text-toydb-navy">Broken:</span> {toy.broken || 'None'}</div>
             {(toy.cost || toy.source) && (
               <div className="text-sm text-toydb-navy mt-1">{toy.cost ? `Cost: $${parseFloat(toy.cost).toFixed(2)}` : ''} {toy.source ? `• Source: ${toy.source}` : ''}</div>
             )}
-            {toy.notes && <div className="text-sm text-toydb-slate mt-1">Notes: {toy.notes}</div>}
-            <div className="text-xs text-toydb-slate mt-2">Accessories: {toy.accessories || 'None'}</div>
           </>
         )}
 

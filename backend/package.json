@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node index.js",
     "migrate:users": "node scripts/run_migration.js add_user_access.sql",
-    "migrate:wishlist": "node scripts/run_migration.js add_toy_wishlist.sql"
+    "migrate:wishlist": "node scripts/run_migration.js add_toy_wishlist.sql",
+    "migrate:toy-fields": "node scripts/run_migration.js add_toy_included_broken.sql"
   },
   "dependencies": {
     "bcrypt": "^5.1.0",

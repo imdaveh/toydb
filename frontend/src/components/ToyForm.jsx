@@ -1,19 +1,21 @@
 import React, { useState } from 'react'
 import useToySuggestions from '../hooks/useToySuggestions'
+import useTags from '../hooks/useTags'
 import AutocompleteInput from './AutocompleteInput'
+import TagPicker from './TagPicker'
 
-const conditions = ['New Unopened', 'Sealed Box', 'On Card', 'Open Box', 'Complete', 'Loose']
-const grades = ['Excellent', 'Good', 'Fair', 'Poor', 'Broken']
+const conditions = ['Mint', 'Excellent', 'Good', 'Fair', 'Poor', 'Broken']
 
 export default function ToyForm({ wishlist = false, onCreated, onCancel }){
-  const [form, setForm] = useState({ name: '', manufacturer: '', series: '', sub_series: '', toyline: '', year: '', accessories: '', missing: '', notes: '', condition: '', grade: '', cost: '', value: '', source: '' })
+  const [form, setForm] = useState({ name: '', manufacturer: '', series: '', sub_series: '', toyline: '', year: '', included: '', missing: '', broken: '', notes: '', condition: '', tagIds: [], cost: '', value: '', source: '' })
   const [photos, setPhotos] = useState(null)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
   const suggestions = useToySuggestions()
+  const allTags = useTags()
 
   function updateField(field, value){ setForm(current => ({ ...current, [field]: value })) }
-  function reset(){ setForm({ name: '', manufacturer: '', series: '', sub_series: '', toyline: '', year: '', accessories: '', missing: '', notes: '', condition: '', grade: '', cost: '', value: '', source: '' }); setPhotos(null) }
+  function reset(){ setForm({ name: '', manufacturer: '', series: '', sub_series: '', toyline: '', year: '', included: '', missing: '', broken: '', notes: '', condition: '', tagIds: [], cost: '', value: '', source: '' }); setPhotos(null) }
 
   async function submit(event){
     event.preventDefault(); setError(null); setLoading(true)
@@ -22,7 +24,8 @@ export default function ToyForm({ wishlist = false, onCreated, onCancel }){
       const token = (await refresh.json()).accessToken
       if (!token) { setError('Not authenticated'); setLoading(false); return }
       const data = new FormData()
-      Object.entries(form).forEach(([field, value]) => data.append(field, value))
+      Object.entries(form).forEach(([field, value]) => { if (field !== 'tagIds') data.append(field, value) })
+      data.append('tags', JSON.stringify(form.tagIds))
       data.append('wishlist', wishlist)
       if (photos) Array.from(photos).forEach(photo => data.append('photos', photo))
       const response = await fetch(import.meta.env.VITE_API_BASE + '/toys', { method: 'POST', credentials: 'include', headers: { Authorization: 'Bearer ' + token }, body: data })
@@ -42,11 +45,13 @@ export default function ToyForm({ wishlist = false, onCreated, onCancel }){
       <Field label="Toyline"><AutocompleteInput value={form.toyline} suggestions={suggestions.toyline} onChange={value => updateField('toyline', value)} /></Field>
       <Field label="Series"><AutocompleteInput value={form.series} suggestions={suggestions.series} onChange={value => updateField('series', value)} /></Field>
       <Field label="Sub-series"><AutocompleteInput value={form.sub_series} suggestions={suggestions.sub_series} onChange={value => updateField('sub_series', value)} /></Field>
-      <Field label="Accessories"><textarea value={form.accessories} onChange={event => updateField('accessories', event.target.value)} className="w-full p-2 border rounded" /></Field>
-      <Field label="Missing"><textarea value={form.missing} onChange={event => updateField('missing', event.target.value)} className="w-full p-2 border rounded" /></Field>
+      <Field label="Condition"><Select value={form.condition} options={conditions} onChange={value => updateField('condition', value)} /></Field>
+      <Field label="Tags"><TagPicker allTags={allTags} selectedTagIds={form.tagIds} onChange={value => updateField('tagIds', value)} /></Field>
       <Field label="Notes"><textarea value={form.notes} onChange={event => updateField('notes', event.target.value)} className="w-full p-2 border rounded" /></Field>
-      <div className="flex gap-2"><Field label="Condition" className="flex-1"><Select value={form.condition} options={conditions} onChange={value => updateField('condition', value)} /></Field><Field label="Grade" className="flex-1"><Select value={form.grade} options={grades} onChange={value => updateField('grade', value)} /></Field></div>
-      <div className="flex gap-2"><Field label="Price" className="flex-1"><input value={form.cost} onChange={event => updateField('cost', event.target.value)} type="number" min="0" step="0.01" className="w-full p-2 border rounded" /></Field><Field label="Value" className="flex-1"><input value={form.value} onChange={event => updateField('value', event.target.value)} type="number" min="0" step="0.01" className="w-full p-2 border rounded" /></Field></div>
+      <Field label="Included"><textarea value={form.included} onChange={event => updateField('included', event.target.value)} className="w-full p-2 border rounded" /></Field>
+      <Field label="Missing"><textarea value={form.missing} onChange={event => updateField('missing', event.target.value)} className="w-full p-2 border rounded" /></Field>
+      <Field label="Broken"><textarea value={form.broken} onChange={event => updateField('broken', event.target.value)} className="w-full p-2 border rounded" /></Field>
+      <div className="flex gap-2"><Field label="Cost" className="w-1/2"><input value={form.cost} onChange={event => updateField('cost', event.target.value)} type="number" min="0" step="0.01" className="w-full p-2 border rounded" /></Field><Field label="Value" className="w-1/2"><input value={form.value} onChange={event => updateField('value', event.target.value)} type="number" min="0" step="0.01" className="w-full p-2 border rounded" /></Field></div>
       <Field label="Source"><AutocompleteInput value={form.source} suggestions={suggestions.source} onChange={value => updateField('source', value)} /></Field>
       <div><label className="block text-sm text-toydb-slate mb-1">Add Photos</label><input type="file" multiple accept="image/*" onChange={event => setPhotos(event.target.files)} /></div>
       <div className="flex gap-2 justify-end"><button type="button" className="border border-toydb-border bg-toydb-white text-toydb-navy p-2 rounded-lg" onClick={() => onCancel ? onCancel() : reset()} disabled={loading}>Cancel</button><button type="submit" className="bg-toydb-orange text-toydb-white font-medium p-2 rounded-lg hover:bg-toydb-orange-dark" disabled={loading}>{loading ? 'Adding...' : wishlist ? 'Add to wishlist' : 'Add to collection'}</button></div>

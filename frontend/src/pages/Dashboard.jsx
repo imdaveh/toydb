@@ -9,7 +9,7 @@ export default function Dashboard({ wishlist = false }){
   const [grouping, setGrouping] = useState('toyline')
   const [selectedGroup, setSelectedGroup] = useState(null)
   const [filterOpen, setFilterOpen] = useState(false)
-  const [filterField, setFilterField] = useState('condition')
+  const [filterField, setFilterField] = useState('manufacturer')
   const [filterValue, setFilterValue] = useState('')
   const [appliedFilter, setAppliedFilter] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -65,15 +65,23 @@ export default function Dashboard({ wishlist = false }){
     return result
   }, {})
   const selectedToys = selectedGroup ? groups[selectedGroup] || [] : []
+  const filterableToys = wishlist ? toys : selectedToys
   const filterFields = {
+    tag: 'Tag',
     condition: 'Condition',
     manufacturer: 'Manufacturer',
     year: 'Year',
     series: 'Series',
     sub_series: 'Sub-Series'
   }
-  const filterValues = [...new Set(selectedToys.map(toy => toy[filterField]).filter(value => value !== null && value !== undefined && String(value).trim()).map(String))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
-  const filteredToys = appliedFilter ? selectedToys.filter(toy => String(toy[appliedFilter.field] || '') === appliedFilter.value) : selectedToys
+  const filterValues = filterField === 'tag'
+    ? [...new Set(filterableToys.flatMap(toy => (toy.tags || []).map(tag => tag.name)))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+    : [...new Set(filterableToys.map(toy => toy[filterField]).filter(value => value !== null && value !== undefined && String(value).trim()).map(String))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+  const filteredToys = appliedFilter
+    ? (appliedFilter.field === 'tag'
+      ? filterableToys.filter(toy => (toy.tags || []).some(tag => tag.name === appliedFilter.value))
+      : filterableToys.filter(toy => String(toy[appliedFilter.field] || '') === appliedFilter.value))
+    : filterableToys
 
   function changeGrouping(nextGrouping){
     setGrouping(nextGrouping)
@@ -142,8 +150,22 @@ export default function Dashboard({ wishlist = false }){
       {loading && <div>Loading toys...</div>}
       {!loading && toys.length === 0 && <div className="border border-dashed border-toydb-teal bg-toydb-teal-pale p-6 text-sm text-toydb-teal-dark">{wishlist ? 'No wishlist toys yet. Use "+ Add Wishlist Toy" above to add your first item.' : 'No toys yet. Use "+ Add Toy" above to add your first item.'}</div>}
       {!loading && wishlist && toys.length > 0 && (
-        <div className="grid grid-cols-1 gap-4">
-          {toys.map(toy => <ToyCard key={toy.id} toy={toy} allowDelete onDeleted={onDeleted} />)}
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <button type="button" onClick={() => setFilterOpen(open => !open)} className="rounded-lg border border-toydb-orange bg-toydb-orange-pale px-3 py-2 text-sm font-medium text-toydb-orange-dark hover:bg-toydb-orange hover:text-toydb-white">
+              Filter: {appliedFilter ? filterFields[appliedFilter.field] : 'None'}
+            </button>
+          </div>
+          {filterOpen && <div className="grid gap-3 border border-toydb-border bg-toydb-white p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+            <label className="block text-sm font-medium text-toydb-navy">Filter by<select value={filterField} onChange={event => changeFilterField(event.target.value)} className="mt-1 w-full p-2"><option value="tag">Tag</option><option value="condition">Condition</option><option value="manufacturer">Manufacturer</option><option value="year">Year</option><option value="series">Series</option><option value="sub_series">Sub-Series</option></select></label>
+            <label className="block text-sm font-medium text-toydb-navy">Value<select value={filterValue} onChange={event => setFilterValue(event.target.value)} className="mt-1 w-full p-2"><option value="">Select a value</option>{filterValues.map(value => <option key={value} value={value}>{value}</option>)}</select></label>
+            <div className="flex gap-2"><button type="button" onClick={applyFilter} disabled={!filterValue} className="bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white hover:bg-toydb-teal-dark disabled:cursor-not-allowed disabled:opacity-60">Apply</button>{appliedFilter && <button type="button" onClick={() => { setAppliedFilter(null); setFilterValue(''); setFilterOpen(false) }} className="border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-medium text-toydb-navy hover:bg-toydb-cream">Clear</button>}</div>
+          </div>}
+          {appliedFilter && <div className="flex items-center justify-between gap-3 text-sm text-toydb-slate"><span>{filterFields[appliedFilter.field]}: {appliedFilter.value}</span><button type="button" onClick={() => setAppliedFilter(null)} className="font-medium text-toydb-teal-dark hover:text-toydb-orange-dark">Clear filter</button></div>}
+          <div className="grid grid-cols-1 gap-4">
+            {filteredToys.map(toy => <ToyCard key={toy.id} toy={toy} allowDelete onDeleted={onDeleted} />)}
+          </div>
+          {filteredToys.length === 0 && <div className="border border-dashed border-toydb-border p-4 text-sm text-toydb-slate">No toys match this filter.</div>}
         </div>
       )}
       {!loading && !wishlist && toys.length > 0 && !selectedGroup && (
@@ -166,20 +188,22 @@ export default function Dashboard({ wishlist = false }){
       )}
       {!loading && !wishlist && selectedGroup && (
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <button type="button" onClick={() => { setSelectedGroup(null); setFilterOpen(false); setAppliedFilter(null) }} className="rounded-lg border border-toydb-teal bg-toydb-teal-pale px-3 py-2 text-sm font-medium text-toydb-teal-dark hover:bg-toydb-teal hover:text-toydb-white">
-              &larr; Back to {activeGrouping.label.toLowerCase()}
+          <div className="-mt-3">
+            <button type="button" onClick={() => { setSelectedGroup(null); setFilterOpen(false); setAppliedFilter(null) }} className="block mb-4 text-base font-medium text-toydb-slate hover:text-toydb-teal-dark">
+              &larr; Back to {activeGrouping.label}
             </button>
+            <h4 className="text-xl font-bold text-toydb-navy">{selectedGroup} <span className="text-toydb-teal-dark">({filteredToys.length})</span></h4>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <button type="button" onClick={() => setFilterOpen(open => !open)} className="rounded-lg border border-toydb-orange bg-toydb-orange-pale px-3 py-2 text-sm font-medium text-toydb-orange-dark hover:bg-toydb-orange hover:text-toydb-white">
               Filter: {appliedFilter ? filterFields[appliedFilter.field] : 'None'}
             </button>
           </div>
           {filterOpen && <div className="grid gap-3 border border-toydb-border bg-toydb-white p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
-            <label className="block text-sm font-medium text-toydb-navy">Filter by<select value={filterField} onChange={event => changeFilterField(event.target.value)} className="mt-1 w-full p-2"><option value="condition">Condition</option><option value="manufacturer">Manufacturer</option><option value="year">Year</option><option value="series">Series</option><option value="sub_series">Sub-Series</option></select></label>
+            <label className="block text-sm font-medium text-toydb-navy">Filter by<select value={filterField} onChange={event => changeFilterField(event.target.value)} className="mt-1 w-full p-2"><option value="tag">Tag</option><option value="condition">Condition</option><option value="manufacturer">Manufacturer</option><option value="year">Year</option><option value="series">Series</option><option value="sub_series">Sub-Series</option></select></label>
             <label className="block text-sm font-medium text-toydb-navy">Value<select value={filterValue} onChange={event => setFilterValue(event.target.value)} className="mt-1 w-full p-2"><option value="">Select a value</option>{filterValues.map(value => <option key={value} value={value}>{value}</option>)}</select></label>
             <div className="flex gap-2"><button type="button" onClick={applyFilter} disabled={!filterValue} className="bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white hover:bg-toydb-teal-dark disabled:cursor-not-allowed disabled:opacity-60">Apply</button>{appliedFilter && <button type="button" onClick={() => { setAppliedFilter(null); setFilterValue(''); setFilterOpen(false) }} className="border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-medium text-toydb-navy hover:bg-toydb-cream">Clear</button>}</div>
           </div>}
-          <h4 className="text-xl font-bold text-toydb-navy">{selectedGroup} <span className="text-toydb-teal-dark">({filteredToys.length})</span></h4>
           {appliedFilter && <div className="flex items-center justify-between gap-3 text-sm text-toydb-slate"><span>{filterFields[appliedFilter.field]}: {appliedFilter.value}</span><button type="button" onClick={() => setAppliedFilter(null)} className="font-medium text-toydb-teal-dark hover:text-toydb-orange-dark">Clear filter</button></div>}
           <div className="grid grid-cols-1 gap-4">
             {filteredToys.map(t => <ToyCard key={t.id} toy={t} onUpdated={onUpdated} onDeleted={onDeleted} />)}

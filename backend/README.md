@@ -18,3 +18,6 @@ API endpoints
 Notes
 - Refresh tokens are stored in DB and set as HttpOnly cookies for safety.
 - Access tokens are short-lived JWTs; store them in memory on the client.
+- Uploaded toy photos are written to the directory in UPLOADS_DIR (see .env.example).
+  In production, set UPLOADS_DIR to a path outside the deployed code directory
+  (e.g. a persistent folder on the host) so photos aren't lost when you redeploy.

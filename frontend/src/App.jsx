@@ -58,7 +58,7 @@ export default function App(){
               <Link to="/dashboard" className="font-medium text-toydb-cream hover:text-toydb-orange-light">Collection</Link>
               <Link to="/wishlist" className="font-medium text-toydb-cream hover:text-toydb-orange-light">Wishlist</Link>
               <Link to="/account" className="font-medium text-toydb-cream hover:text-toydb-orange-light">Account</Link>
-              {user?.isAdmin && <Link to="/admin/users" className="font-medium text-toydb-cream hover:text-toydb-orange-light">Review</Link>}
+              {user?.isAdmin && <Link to="/admin" className="font-medium text-toydb-cream hover:text-toydb-orange-light">Admin</Link>}
               <button onClick={logout} className="font-medium text-toydb-cream hover:text-toydb-orange-light">Logout</button>
             </nav>
           </header>

@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken');
 const authRoutes = require('./routes/auth');
 const toysRoutes = require('./routes/toys');
 const adminRoutes = require('./routes/admin');
+const tagsRoutes = require('./routes/tags');
 const pool = require('./db');
 
 const app = express();
@@ -39,11 +40,12 @@ app.use(cors({
 }));
 
 // serve uploaded images
-app.use('/uploads', express.static(require('path').join(__dirname, 'uploads')));
+app.use('/uploads', express.static(require('./uploadsPath')));
 
 app.use('/auth', authRoutes);
 app.use('/toys', toysRoutes);
 app.use('/admin', adminRoutes);
+app.use('/tags', tagsRoutes);
 
 app.get('/health', async (req, res) => {
   try {
