@@ -3,6 +3,7 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const sharp = require('sharp');
 const pool = require('../db');
 const { authenticate } = require('../middleware/auth');
 
@@ -10,38 +11,80 @@ const { authenticate } = require('../middleware/auth');
 const uploadsDir = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, uploadsDir);
-  },
-  filename: function (req, file, cb) {
-    const ext = path.extname(file.originalname);
-    const name = Date.now() + '-' + Math.random().toString(36).substring(2,8) + ext;
-    cb(null, name);
+const supportedImageTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB per image
+  fileFilter: (req, file, callback) => {
+    if (!supportedImageTypes.has(file.mimetype)) return callback(new Error('Only JPEG, PNG, and WebP images are allowed'));
+    callback(null, true);
   }
 });
-const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB
+
+async function preparePhotos(files) {
+  return Promise.all(files.map(async file => {
+    try {
+      const metadata = await sharp(file.buffer, { limitInputPixels: 100000000 }).metadata();
+      if (!['jpeg', 'png', 'webp'].includes(metadata.format)) throw new Error('Unsupported image format');
+      return {
+        buffer: await sharp(file.buffer, { limitInputPixels: 100000000 })
+          .rotate()
+          .resize(2000, 2000, { fit: 'inside', withoutEnlargement: true })
+          .webp({ quality: 82 })
+          .toBuffer(),
+        originalName: file.originalname
+      };
+    } catch (err) {
+      throw new Error(`Invalid photo: ${file.originalname}`);
+    }
+  }));
+}
+
+async function savePhotos(toyId, photos) {
+  for (const photo of photos) {
+    const filename = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}.webp`;
+    await fs.promises.writeFile(path.join(uploadsDir, filename), photo.buffer);
+    await pool.query('INSERT INTO toy_photos (toy_id, filename, original_name) VALUES (?, ?, ?)', [toyId, filename, photo.originalName]);
+  }
+}
+
+const suggestionFields = ['manufacturer', 'toyline', 'series', 'sub_series', 'source'];
+
+// Return the current user's previous values for form autocomplete.
+router.get('/suggestions', authenticate, async (req, res) => {
+  try {
+    const suggestions = {};
+    for (const field of suggestionFields) {
+      const [rows] = await pool.query(
+        `SELECT DISTINCT ${field} AS value FROM toys WHERE user_id = ? AND ${field} IS NOT NULL AND TRIM(${field}) <> '' ORDER BY ${field} LIMIT 100`,
+        [req.user.id]
+      );
+      suggestions[field] = rows.map(row => row.value);
+    }
+    res.json({ suggestions });
+  } catch (err) {
+    console.error('Suggestion query error', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
 
 // Create toy
 router.post('/', authenticate, upload.array('photos', 8), async (req, res) => {
   const userId = req.user.id;
-  const { name, manufacturer, series, sub_series, toyline, year, accessories, condition, cost, source, notes } = req.body || {};
+  const { name, manufacturer, series, sub_series, toyline, year, accessories, missing, condition, grade, cost, value, source, notes } = req.body || {};
   if (!name) return res.status(400).json({ error: 'Name is required' });
   try {
+    const photos = await preparePhotos(req.files || []);
     const [result] = await pool.query(
-      'INSERT INTO toys (user_id, name, manufacturer, series, sub_series, toyline, `year`, cost, source, notes, accessories, `condition`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [userId, name, manufacturer || null, series || null, sub_series || null, toyline || null, year ? parseInt(year) : null, (req.body.cost ? parseFloat(req.body.cost) : null), req.body.source || null, req.body.notes || null, accessories || null, condition || null]
+      'INSERT INTO toys (user_id, name, manufacturer, series, sub_series, toyline, `year`, cost, `value`, source, notes, accessories, missing, `condition`, grade) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [userId, name, manufacturer || null, series || null, sub_series || null, toyline || null, year ? parseInt(year) : null, cost ? parseFloat(cost) : null, value ? parseFloat(value) : null, source || null, notes || null, accessories || null, missing || null, condition || null, grade || null]
     );
     const toyId = result.insertId;
-    // store photos
-    const files = req.files || [];
-    for (const f of files) {
-      await pool.query('INSERT INTO toy_photos (toy_id, filename, original_name) VALUES (?, ?, ?)', [toyId, f.filename, f.originalname]);
-    }
+    await savePhotos(toyId, photos);
     res.json({ ok: true, id: toyId });
   } catch (err) {
     console.error('Insert error', err && err.code);
-    res.status(500).json({ error: 'Server error' });
+    res.status(err.message && err.message.startsWith('Invalid photo') ? 400 : 500).json({ error: err.message && err.message.startsWith('Invalid photo') ? err.message : 'Server error' });
   }
 });
 
@@ -49,7 +92,7 @@ router.post('/', authenticate, upload.array('photos', 8), async (req, res) => {
 router.get('/', authenticate, async (req, res) => {
   const userId = req.user.id;
   try {
-    const [toys] = await pool.query('SELECT id, name, manufacturer, series, sub_series, toyline, `year`, cost, source, notes, accessories, `condition`, created_at FROM toys WHERE user_id = ?', [userId]);
+    const [toys] = await pool.query('SELECT id, name, manufacturer, series, sub_series, toyline, `year`, cost, `value`, source, notes, accessories, missing, `condition`, grade, created_at FROM toys WHERE user_id = ?', [userId]);
     // fetch photos for each toy
     for (const t of toys) {
       const [photos] = await pool.query('SELECT id, filename, original_name FROM toy_photos WHERE toy_id = ?', [t.id]);
@@ -67,7 +110,7 @@ router.get('/:id', authenticate, async (req, res) => {
   const userId = req.user.id;
   const id = req.params.id;
   try {
-    const [rows] = await pool.query('SELECT id, name, manufacturer, series, sub_series, toyline, `year`, cost, source, notes, accessories, `condition`, created_at FROM toys WHERE id = ? AND user_id = ?', [id, userId]);
+    const [rows] = await pool.query('SELECT id, name, manufacturer, series, sub_series, toyline, `year`, cost, `value`, source, notes, accessories, missing, `condition`, grade, created_at FROM toys WHERE id = ? AND user_id = ?', [id, userId]);
     if (!rows.length) return res.status(404).json({ error: 'Toy not found' });
     const toy = rows[0];
     const [photos] = await pool.query('SELECT id, filename, original_name FROM toy_photos WHERE toy_id = ?', [toy.id]);
@@ -83,10 +126,10 @@ router.get('/:id', authenticate, async (req, res) => {
 router.put('/:id', authenticate, async (req, res) => {
   const userId = req.user.id;
   const id = req.params.id;
-  const { name, manufacturer, series, sub_series, toyline, year, accessories, condition, cost, source, notes } = req.body || {};
+  const { name, manufacturer, series, sub_series, toyline, year, accessories, missing, condition, grade, cost, value, source, notes } = req.body || {};
   if (!name) return res.status(400).json({ error: 'Name is required' });
   try {
-    const [result] = await pool.query('UPDATE toys SET name=?, manufacturer=?, series=?, sub_series=?, toyline=?, `year`=?, cost=?, source=?, notes=?, accessories=?, `condition`=? WHERE id=? AND user_id=?', [name, manufacturer || null, series || null, sub_series || null, toyline || null, year ? parseInt(year) : null, (cost ? parseFloat(cost) : null), source || null, notes || null, accessories || null, condition || null, id, userId]);
+    const [result] = await pool.query('UPDATE toys SET name=?, manufacturer=?, series=?, sub_series=?, toyline=?, `year`=?, cost=?, `value`=?, source=?, notes=?, accessories=?, missing=?, `condition`=?, grade=? WHERE id=? AND user_id=?', [name, manufacturer || null, series || null, sub_series || null, toyline || null, year ? parseInt(year) : null, cost ? parseFloat(cost) : null, value ? parseFloat(value) : null, source || null, notes || null, accessories || null, missing || null, condition || null, grade || null, id, userId]);
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Toy not found' });
     res.json({ ok: true });
   } catch (err) {
@@ -121,14 +164,12 @@ router.post('/:id/photos', authenticate, upload.array('photos', 8), async (req, 
   try {
     const [rows] = await pool.query('SELECT id FROM toys WHERE id = ? AND user_id = ?', [id, userId]);
     if (!rows.length) return res.status(404).json({ error: 'Toy not found' });
-    const files = req.files || [];
-    for (const f of files) {
-      await pool.query('INSERT INTO toy_photos (toy_id, filename, original_name) VALUES (?, ?, ?)', [id, f.filename, f.originalname]);
-    }
+    const photos = await preparePhotos(req.files || []);
+    await savePhotos(id, photos);
     res.json({ ok: true });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(err.message && err.message.startsWith('Invalid photo') ? 400 : 500).json({ error: err.message && err.message.startsWith('Invalid photo') ? err.message : 'Server error' });
   }
 });
 

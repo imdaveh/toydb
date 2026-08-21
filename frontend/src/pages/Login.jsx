@@ -32,7 +32,7 @@ export default function Login(){
       <form onSubmit={submit} className="space-y-4">
         {error && <div className="bg-toydb-danger-pale text-toydb-danger p-3 rounded-lg">{error}</div>}
         <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email" className="w-full p-2 bg-toydb-white border border-toydb-border rounded-lg" />
-        <input value={password} onChange={e=>setPassword(e.target.value)} type="password" placeholder="Password (min 6)" className="w-full p-2 bg-toydb-white border border-toydb-border rounded-lg" />
+        <input value={password} onChange={e=>setPassword(e.target.value)} type="password" placeholder="Password (minimum 12 characters)" className="w-full p-2 bg-toydb-white border border-toydb-border rounded-lg" />
         <button className="w-full bg-toydb-teal text-toydb-white font-medium p-2 rounded-lg hover:bg-toydb-teal-dark">Login</button>
         <div className="text-center text-sm text-toydb-slate mt-2">Don't have an account? <Link to="/register" className="font-medium text-toydb-teal-dark hover:text-toydb-orange-dark">Register</Link></div>
       </form>

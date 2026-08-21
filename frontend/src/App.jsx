@@ -29,6 +29,7 @@ export default function App(){
             </div>
             <nav className="flex items-center gap-3 text-sm">
               <Link to="/add" className="rounded-lg bg-toydb-teal px-3 py-2 font-medium text-toydb-white shadow-sm hover:bg-toydb-teal-dark">+ Add Toy</Link>
+              <Link to="/account" className="font-medium text-toydb-cream hover:text-toydb-orange-light">Account</Link>
               <button onClick={logout} className="font-medium text-toydb-cream hover:text-toydb-orange-light">Logout</button>
             </nav>
           </header>

@@ -30,7 +30,7 @@ export default function Register(){
           </div>
         ) : <>
           <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email" className="w-full p-2 bg-toydb-white border border-toydb-border rounded-lg" />
-          <input value={password} onChange={e=>setPassword(e.target.value)} type="password" placeholder="Password (min 6)" className="w-full p-2 bg-toydb-white border border-toydb-border rounded-lg" />
+          <input value={password} onChange={e=>setPassword(e.target.value)} type="password" placeholder="Password (12+ chars, upper, lower, number, symbol)" className="w-full p-2 bg-toydb-white border border-toydb-border rounded-lg" />
           <button className="w-full bg-toydb-orange text-toydb-white font-medium p-2 rounded-lg hover:bg-toydb-orange-dark">Create account</button>
         </>}
     </form>

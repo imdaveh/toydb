@@ -1,0 +1,53 @@
+-- Fresh ToyDB installation only. Do not run this against an existing production database.
+-- In Hostinger phpMyAdmin, select a new empty database and import this file.
+
+CREATE DATABASE IF NOT EXISTS toydb CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE toydb;
+
+CREATE TABLE users (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  email VARCHAR(255) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  is_admin BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE refresh_tokens (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id INT UNSIGNED NOT NULL,
+  token TEXT NOT NULL,
+  expires_at DATETIME NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE toys (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id INT UNSIGNED NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  manufacturer VARCHAR(255),
+  series VARCHAR(255),
+  sub_series VARCHAR(255),
+  toyline VARCHAR(255),
+  `year` SMALLINT UNSIGNED,
+  cost DECIMAL(10,2),
+  `value` DECIMAL(10,2),
+  source VARCHAR(255),
+  notes TEXT,
+  accessories TEXT,
+  missing TEXT,
+  `condition` VARCHAR(50),
+  grade VARCHAR(20),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE toy_photos (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  toy_id INT UNSIGNED NOT NULL,
+  filename VARCHAR(512) NOT NULL,
+  original_name VARCHAR(512),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (toy_id) REFERENCES toys(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

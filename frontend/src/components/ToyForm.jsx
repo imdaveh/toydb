@@ -1,139 +1,62 @@
 import React, { useState } from 'react'
+import useToySuggestions from '../hooks/useToySuggestions'
+import AutocompleteInput from './AutocompleteInput'
+
+const conditions = ['New Unopened', 'Sealed Box', 'On Card', 'Open Box', 'Complete', 'Loose']
+const grades = ['Excellent', 'Good', 'Fair', 'Poor', 'Broken']
 
 export default function ToyForm({ onCreated, onCancel }){
-  const [name, setName] = useState('')
-  const [manufacturer, setManufacturer] = useState('')
-  const [series, setSeries] = useState('')
-  const [subSeries, setSubSeries] = useState('')
-  const [toyline, setToyline] = useState('')
-  const [year, setYear] = useState('')
-  const [accessories, setAccessories] = useState('')
-  const [condition, setCondition] = useState('Good')
-  const [cost, setCost] = useState('')
-  const [source, setSource] = useState('')
-  const [notes, setNotes] = useState('')
+  const [form, setForm] = useState({ name: '', manufacturer: '', series: '', sub_series: '', toyline: '', year: '', accessories: '', missing: '', notes: '', condition: '', grade: '', cost: '', value: '', source: '' })
   const [photos, setPhotos] = useState(null)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
+  const suggestions = useToySuggestions()
 
-  async function submit(e){
-    e.preventDefault(); setError(null); setLoading(true)
-    try{
-      // refresh to get token
-      const r = await fetch(import.meta.env.VITE_API_BASE + '/auth/refresh', { method: 'POST', credentials: 'include' })
-      const data = await r.json()
-      const token = data.accessToken
-      if (!token) return setError('Not authenticated')
-      const fd = new FormData()
-      fd.append('name', name)
-      fd.append('manufacturer', manufacturer)
-      fd.append('series', series)
-      fd.append('sub_series', subSeries)
-      fd.append('toyline', toyline)
-      fd.append('year', year)
-      fd.append('cost', cost)
-      fd.append('source', source)
-      fd.append('notes', notes)
-      fd.append('accessories', accessories)
-      fd.append('condition', condition)
-      if (photos) {
-        for (const f of photos) fd.append('photos', f)
-      }
-      const res = await fetch(import.meta.env.VITE_API_BASE + '/toys', { method: 'POST', credentials: 'include', headers: { Authorization: 'Bearer ' + token }, body: fd })
-      const d = await res.json()
-      if (!res.ok) return setError(d.error || 'Failed')
-      setName(''); setManufacturer(''); setToyline(''); setYear(''); setSeries(''); setSubSeries(''); setAccessories(''); setCondition('Good'); setCost(''); setSource(''); setNotes(''); setPhotos(null)
+  function updateField(field, value){ setForm(current => ({ ...current, [field]: value })) }
+  function reset(){ setForm({ name: '', manufacturer: '', series: '', sub_series: '', toyline: '', year: '', accessories: '', missing: '', notes: '', condition: '', grade: '', cost: '', value: '', source: '' }); setPhotos(null) }
+
+  async function submit(event){
+    event.preventDefault(); setError(null); setLoading(true)
+    try {
+      const refresh = await fetch(import.meta.env.VITE_API_BASE + '/auth/refresh', { method: 'POST', credentials: 'include' })
+      const token = (await refresh.json()).accessToken
+      if (!token) { setError('Not authenticated'); setLoading(false); return }
+      const data = new FormData()
+      Object.entries(form).forEach(([field, value]) => data.append(field, value))
+      if (photos) Array.from(photos).forEach(photo => data.append('photos', photo))
+      const response = await fetch(import.meta.env.VITE_API_BASE + '/toys', { method: 'POST', credentials: 'include', headers: { Authorization: 'Bearer ' + token }, body: data })
+      const result = await response.json()
+      if (!response.ok) { setError(result.error || 'Failed'); setLoading(false); return }
+      reset()
       if (onCreated) onCreated()
-    } catch (err){ setError('Server error') }
+    } catch (error) { setError('Server error') }
     setLoading(false)
   }
 
   return (
     <form onSubmit={submit} className="space-y-3">
       {error && <div className="bg-toydb-danger-pale text-toydb-danger p-3 rounded-lg">{error}</div>}
-
-      {/* 1st row: Name */}
-      <div>
-        <label htmlFor="add-toy-name" className="block text-sm font-medium text-toydb-navy mb-1">Name</label>
-        <input id="add-toy-name" required value={name} onChange={e=>setName(e.target.value)} className="w-full p-2 border rounded" />
-      </div>
-
-      {/* 2nd row: Year and Manufacturer */}
-      <div className="flex gap-2">
-        <div className="w-24">
-          <label htmlFor="add-toy-year" className="block text-sm font-medium text-toydb-navy mb-1">Year</label>
-          <input id="add-toy-year" value={year} onChange={e=>setYear(e.target.value)} type="number" min="1800" max="2100" className="w-full p-2 border rounded" />
-        </div>
-        <div className="flex-1">
-          <label htmlFor="add-toy-manufacturer" className="block text-sm font-medium text-toydb-navy mb-1">Manufacturer</label>
-          <input id="add-toy-manufacturer" value={manufacturer} onChange={e=>setManufacturer(e.target.value)} className="w-full p-2 border rounded" />
-        </div>
-      </div>
-
-      {/* 3rd row: Toyline */}
-      <div>
-        <label htmlFor="add-toy-toyline" className="block text-sm font-medium text-toydb-navy mb-1">Toyline</label>
-        <input id="add-toy-toyline" value={toyline} onChange={e=>setToyline(e.target.value)} className="w-full p-2 border rounded" />
-      </div>
-
-      {/* 4th row: Series */}
-      <div>
-        <label htmlFor="add-toy-series" className="block text-sm font-medium text-toydb-navy mb-1">Series</label>
-        <input id="add-toy-series" value={series} onChange={e=>setSeries(e.target.value)} className="w-full p-2 border rounded" />
-      </div>
-
-      {/* 5th row: Sub-series */}
-      <div>
-        <label htmlFor="add-toy-subseries" className="block text-sm font-medium text-toydb-navy mb-1">Sub-series</label>
-        <input id="add-toy-subseries" value={subSeries} onChange={e=>setSubSeries(e.target.value)} className="w-full p-2 border rounded" />
-      </div>
-
-      {/* 6th row: Accessories */}
-      <div>
-        <label htmlFor="add-toy-accessories" className="block text-sm font-medium text-toydb-navy mb-1">Accessories</label>
-        <textarea id="add-toy-accessories" value={accessories} onChange={e=>setAccessories(e.target.value)} className="w-full p-2 border rounded" />
-      </div>
-
-      {/* 7th row: Notes */}
-      <div>
-        <label htmlFor="add-toy-notes" className="block text-sm font-medium text-toydb-navy mb-1">Notes</label>
-        <textarea id="add-toy-notes" value={notes} onChange={e=>setNotes(e.target.value)} className="w-full p-2 border rounded" />
-      </div>
-
-      {/* 8th row: Condition */}
-      <div>
-        <label htmlFor="add-toy-condition" className="block text-sm font-medium text-toydb-navy mb-1">Condition</label>
-        <select id="add-toy-condition" value={condition} onChange={e=>setCondition(e.target.value)} className="w-full p-2 border rounded">
-          <option>Mint</option>
-          <option>Near Mint</option>
-          <option>Excellent</option>
-          <option>Good</option>
-          <option>Fair</option>
-          <option>Poor</option>
-        </select>
-      </div>
-
-      {/* 9th row: Price and Source */}
-      <div className="flex gap-2">
-        <div className="w-32">
-          <label htmlFor="add-toy-cost" className="block text-sm font-medium text-toydb-navy mb-1">Price</label>
-          <input id="add-toy-cost" value={cost} onChange={e=>setCost(e.target.value)} type="number" step="0.01" className="w-full p-2 border rounded" />
-        </div>
-        <div className="flex-1">
-          <label htmlFor="add-toy-source" className="block text-sm font-medium text-toydb-navy mb-1">Source</label>
-          <input id="add-toy-source" value={source} onChange={e=>setSource(e.target.value)} className="w-full p-2 border rounded" />
-        </div>
-      </div>
-
-      {/* Photo management remains at bottom */}
-      <div>
-        <label className="block text-sm text-toydb-slate mb-1">Add Photos</label>
-        <input type="file" multiple accept="image/*" onChange={e=>setPhotos(e.target.files)} />
-      </div>
-      <div className="flex gap-2 justify-end">
-        <button type="button" className="border border-toydb-border bg-toydb-white text-toydb-navy p-2 rounded-lg" onClick={() => { if (onCancel) onCancel(); else { /* reset form */ setName(''); setManufacturer(''); setToyline(''); setYear(''); setSeries(''); setSubSeries(''); setAccessories(''); setCondition('Good'); setPhotos(null); } }} disabled={loading}>Cancel</button>
-        <button type="submit" className="bg-toydb-orange text-toydb-white font-medium p-2 rounded-lg hover:bg-toydb-orange-dark" disabled={loading}>{loading ? 'Adding...' : 'Add to collection'}</button>
-      </div>
+      <Field label="Name"><input required value={form.name} onChange={event => updateField('name', event.target.value)} className="w-full p-2 border rounded" /></Field>
+      <div className="flex gap-2"><Field label="Year" className="w-24"><input value={form.year} onChange={event => updateField('year', event.target.value)} type="number" min="1800" max="2100" className="w-full p-2 border rounded" /></Field><Field label="Manufacturer" className="flex-1"><AutocompleteInput value={form.manufacturer} suggestions={suggestions.manufacturer} onChange={value => updateField('manufacturer', value)} /></Field></div>
+      <Field label="Toyline"><AutocompleteInput value={form.toyline} suggestions={suggestions.toyline} onChange={value => updateField('toyline', value)} /></Field>
+      <Field label="Series"><AutocompleteInput value={form.series} suggestions={suggestions.series} onChange={value => updateField('series', value)} /></Field>
+      <Field label="Sub-series"><AutocompleteInput value={form.sub_series} suggestions={suggestions.sub_series} onChange={value => updateField('sub_series', value)} /></Field>
+      <Field label="Accessories"><textarea value={form.accessories} onChange={event => updateField('accessories', event.target.value)} className="w-full p-2 border rounded" /></Field>
+      <Field label="Missing"><textarea value={form.missing} onChange={event => updateField('missing', event.target.value)} className="w-full p-2 border rounded" /></Field>
+      <Field label="Notes"><textarea value={form.notes} onChange={event => updateField('notes', event.target.value)} className="w-full p-2 border rounded" /></Field>
+      <div className="flex gap-2"><Field label="Condition" className="flex-1"><Select value={form.condition} options={conditions} onChange={value => updateField('condition', value)} /></Field><Field label="Grade" className="flex-1"><Select value={form.grade} options={grades} onChange={value => updateField('grade', value)} /></Field></div>
+      <div className="flex gap-2"><Field label="Price" className="w-32"><input value={form.cost} onChange={event => updateField('cost', event.target.value)} type="number" min="0" step="0.01" className="w-full p-2 border rounded" /></Field><Field label="Value" className="w-32"><input value={form.value} onChange={event => updateField('value', event.target.value)} type="number" min="0" step="0.01" className="w-full p-2 border rounded" /></Field><Field label="Source" className="flex-1"><AutocompleteInput value={form.source} suggestions={suggestions.source} onChange={value => updateField('source', value)} /></Field></div>
+      <div><label className="block text-sm text-toydb-slate mb-1">Add Photos</label><input type="file" multiple accept="image/*" onChange={event => setPhotos(event.target.files)} /></div>
+      <div className="flex gap-2 justify-end"><button type="button" className="border border-toydb-border bg-toydb-white text-toydb-navy p-2 rounded-lg" onClick={() => onCancel ? onCancel() : reset()} disabled={loading}>Cancel</button><button type="submit" className="bg-toydb-orange text-toydb-white font-medium p-2 rounded-lg hover:bg-toydb-orange-dark" disabled={loading}>{loading ? 'Adding...' : 'Add to collection'}</button></div>
     </form>
   )
 }
+
+function Field({ label, children, className = '' }){
+  return <div className={className}><label className="block text-sm font-medium text-toydb-navy mb-1">{label}</label>{children}</div>
+}
+
+function Select({ value, options, onChange }){
+  return <select value={value} onChange={event => onChange(event.target.value)} className="w-full p-2 border rounded"><option value="">Select</option>{options.map(option => <option key={option}>{option}</option>)}</select>
+}
+

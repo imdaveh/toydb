@@ -9,6 +9,15 @@ const REFRESH_SECRET = process.env.REFRESH_TOKEN_SECRET;
 const ACCESS_EXPIRES = process.env.ACCESS_TOKEN_EXPIRES || '15m';
 const REFRESH_EXPIRES = process.env.REFRESH_TOKEN_EXPIRES || '7d';
 
+function validatePassword(password) {
+  if (typeof password !== 'string' || password.length < 12) return 'Password must be at least 12 characters long';
+  if (!/[a-z]/.test(password)) return 'Password must include a lowercase letter';
+  if (!/[A-Z]/.test(password)) return 'Password must include an uppercase letter';
+  if (!/\d/.test(password)) return 'Password must include a number';
+  if (!/[^A-Za-z0-9]/.test(password)) return 'Password must include a symbol';
+  return null;
+}
+
 function signAccess(user) {
   return jwt.sign({ id: user.id, email: user.email }, ACCESS_SECRET, { expiresIn: ACCESS_EXPIRES });
 }
@@ -19,7 +28,8 @@ function signRefresh(user) {
 // Register
 router.post('/register', async (req, res) => {
   const { email, password } = req.body || {};
-  if (!email || !password || password.length < 6) return res.status(400).json({ error: 'Invalid email or password (min 6 chars)' });
+  const passwordError = validatePassword(password);
+  if (!email || passwordError) return res.status(400).json({ error: passwordError || 'Email is required' });
   try {
     const [rows] = await pool.query('SELECT id FROM users WHERE email = ?', [email]);
     if (rows.length) return res.status(400).json({ error: 'Email already registered' });
@@ -31,6 +41,34 @@ router.post('/register', async (req, res) => {
     });
   } catch (err) {
     console.error('Register error:', err && { code: err.code, message: err.message, sqlMessage: err.sqlMessage });
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Change password for the authenticated user.
+router.post('/change-password', require('../middleware/auth').authenticate, async (req, res) => {
+  const { oldPassword, newPassword, confirmPassword } = req.body || {};
+  if (!oldPassword || !newPassword || !confirmPassword) return res.status(400).json({ error: 'All password fields are required' });
+  if (newPassword !== confirmPassword) return res.status(400).json({ error: 'New passwords do not match' });
+  const passwordError = validatePassword(newPassword);
+  if (passwordError) return res.status(400).json({ error: passwordError });
+
+  try {
+    const [rows] = await pool.query('SELECT id, email, password_hash FROM users WHERE id = ?', [req.user.id]);
+    if (!rows.length) return res.status(404).json({ error: 'User not found' });
+    const user = rows[0];
+    if (!await bcrypt.compare(oldPassword, user.password_hash)) return res.status(400).json({ error: 'Current password is incorrect' });
+    if (await bcrypt.compare(newPassword, user.password_hash)) return res.status(400).json({ error: 'New password must be different from the current password' });
+
+    await pool.query('UPDATE users SET password_hash = ? WHERE id = ?', [await bcrypt.hash(newPassword, 10), user.id]);
+    await pool.query('DELETE FROM refresh_tokens WHERE user_id = ?', [user.id]);
+    const sessionUser = { id: user.id, email: user.email };
+    const refreshToken = signRefresh(sessionUser);
+    await pool.query('INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 7 DAY))', [user.id, refreshToken]);
+    res.cookie('refreshToken', refreshToken, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 7 * 24 * 60 * 60 * 1000 });
+    res.json({ ok: true, accessToken: signAccess(sessionUser) });
+  } catch (err) {
+    console.error('Change password error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
