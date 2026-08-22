@@ -38,6 +38,24 @@ router.patch('/users/:id', async (req, res) => {
   }
 });
 
+router.patch('/users/:id/admin', async (req, res) => {
+  const { isAdmin } = req.body || {};
+  if (typeof isAdmin !== 'boolean') return res.status(400).json({ error: 'isAdmin must be a boolean' });
+  try {
+    if (Number(req.params.id) === Number(req.user.id)) {
+      return res.status(403).json({ error: 'You cannot revoke your own administrator privileges.' });
+    }
+
+    const [result] = await pool.query('UPDATE users SET is_admin = ? WHERE id = ? AND id <> ?', [isAdmin, req.params.id, req.user.id]);
+    if (!result.affectedRows) return res.status(404).json({ error: 'User not found' });
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Update admin privilege error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 router.delete('/users/:id', async (req, res) => {
   try {
     const [result] = await pool.query('DELETE FROM users WHERE id = ? AND id <> ?', [req.params.id, req.user.id]);

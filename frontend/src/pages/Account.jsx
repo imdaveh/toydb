@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 export default function Account(){
@@ -14,6 +14,12 @@ export default function Account(){
   const [importError, setImportError] = useState(null)
   const [importResult, setImportResult] = useState(null)
   const [templateBusy, setTemplateBusy] = useState(false)
+  const [bulkField, setBulkField] = useState('toyline')
+  const [bulkValues, setBulkValues] = useState([])
+  const [selectedBulkValue, setSelectedBulkValue] = useState('')
+  const [bulkDeleteBusy, setBulkDeleteBusy] = useState(false)
+  const [bulkDeleteError, setBulkDeleteError] = useState(null)
+  const [bulkDeleteSuccess, setBulkDeleteSuccess] = useState(null)
 
   async function getToken(){
     const refresh = await fetch(import.meta.env.VITE_API_BASE + '/auth/refresh', { method: 'POST', credentials: 'include' })
@@ -77,6 +83,70 @@ export default function Account(){
     setImportBusy(false)
   }
 
+  useEffect(() => {
+    async function loadBulkValues(){
+      setBulkDeleteError(null)
+      setBulkDeleteSuccess(null)
+      setSelectedBulkValue('')
+      setBulkValues([])
+      try {
+        const token = await getToken()
+        if (!token) { navigate('/'); return }
+        const response = await fetch(import.meta.env.VITE_API_BASE + '/toys/bulk-values?field=' + encodeURIComponent(bulkField), {
+          headers: { Authorization: 'Bearer ' + token }
+        })
+        const data = await response.json()
+        if (!response.ok) {
+          setBulkDeleteError(data.error || 'Unable to load values')
+          return
+        }
+        setBulkValues(data.values || [])
+        setSelectedBulkValue(data.values?.[0] || '')
+      } catch (error) {
+        setBulkDeleteError('Unable to reach the ToyDB server')
+      }
+    }
+
+    loadBulkValues()
+  }, [bulkField])
+
+  async function bulkDeleteMatchingToys(){
+    if (!bulkField || !selectedBulkValue) {
+      setBulkDeleteError('Choose a value to delete.')
+      return
+    }
+
+    const label = bulkField === 'year' ? String(selectedBulkValue) : selectedBulkValue
+    if (!window.confirm(`Delete all toys in your collection with ${bulkField} = "${label}"? This cannot be undone.`)) return
+
+    setBulkDeleteBusy(true)
+    setBulkDeleteError(null)
+    setBulkDeleteSuccess(null)
+
+    try {
+      const token = await getToken()
+      if (!token) { navigate('/'); return }
+      const response = await fetch(import.meta.env.VITE_API_BASE + '/toys/bulk-delete', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ field: bulkField, value: selectedBulkValue })
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        setBulkDeleteError(data.error || 'Unable to delete matching toys')
+        return
+      }
+      setBulkDeleteSuccess(`Deleted ${data.deleted} matching toy${data.deleted === 1 ? '' : 's'}.`)
+      setSelectedBulkValue('')
+      setBulkValues([])
+      setBulkField('toyline')
+    } catch (error) {
+      setBulkDeleteError('Unable to reach the ToyDB server')
+    }
+
+    setBulkDeleteBusy(false)
+  }
+
   return (
     <div className="mx-auto max-w-lg space-y-4">
       <div><h2 className="text-xl font-bold">Account</h2><p className="mt-1 text-sm text-toydb-slate">Change your password.</p></div>
@@ -108,6 +178,36 @@ export default function Account(){
           <input type="file" accept=".csv,text/csv" onChange={event => setImportFile(event.target.files?.[0] || null)} className="flex-1" />
           <button type="submit" disabled={importBusy} className="bg-toydb-orange p-2 font-medium text-toydb-white rounded-lg hover:bg-toydb-orange-dark">{importBusy ? 'Importing...' : 'Import CSV'}</button>
         </form>
+      </div>
+
+      <div className="space-y-4 border border-toydb-danger/60 bg-toydb-white p-4 shadow-sm">
+        <div>
+          <h3 className="font-bold text-toydb-danger">Danger Zone</h3>
+          <p className="mt-1 text-sm text-toydb-slate">Bulk delete toys from your collection by field and value.</p>
+        </div>
+        {bulkDeleteError && <div className="bg-toydb-danger-pale p-3 text-toydb-danger">{bulkDeleteError}</div>}
+        {bulkDeleteSuccess && <div className="bg-toydb-teal-pale p-3 text-toydb-teal-dark">{bulkDeleteSuccess}</div>}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Field">
+            <select value={bulkField} onChange={event => setBulkField(event.target.value)} className="w-full rounded-lg border border-toydb-border p-2">
+              <option value="toyline">Toyline</option>
+              <option value="manufacturer">Manufacturer</option>
+              <option value="series">Series</option>
+              <option value="sub_series">Sub-Series</option>
+              <option value="theme">Theme</option>
+              <option value="year">Year</option>
+            </select>
+          </Field>
+          <Field label="Value">
+            <select value={selectedBulkValue} onChange={event => setSelectedBulkValue(event.target.value)} className="w-full rounded-lg border border-toydb-border p-2" disabled={!bulkValues.length}>
+              {!bulkValues.length && <option value="">No values found</option>}
+              {bulkValues.map(value => <option key={String(value)} value={value}>{String(value)}</option>)}
+            </select>
+          </Field>
+        </div>
+        <button type="button" onClick={bulkDeleteMatchingToys} disabled={bulkDeleteBusy || !selectedBulkValue} className="w-full rounded-lg border border-toydb-danger bg-toydb-danger p-2 font-bold text-toydb-white hover:bg-toydb-danger/90 disabled:cursor-not-allowed disabled:opacity-60">
+          {bulkDeleteBusy ? 'Deleting...' : 'Delete Matching Toys (Dangerous)'}
+        </button>
       </div>
     </div>
   )

@@ -86,6 +86,26 @@ export default function Admin(){
     setUpdatingId(null)
   }
 
+  async function setAdminPrivilege(user, isAdmin){
+    setUpdatingId(user.id)
+    setUsersError(null)
+    try {
+      const token = await getToken()
+      if (!token) return navigate('/')
+      const response = await fetch(import.meta.env.VITE_API_BASE + '/admin/users/' + user.id + '/admin', {
+        method: 'PATCH',
+        headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isAdmin })
+      })
+      const data = await response.json()
+      if (!response.ok) setUsersError(data.error || 'Unable to update admin privileges')
+      else await loadUsers()
+    } catch (err) {
+      setUsersError('Unable to reach the ToyDB server.')
+    }
+    setUpdatingId(null)
+  }
+
   async function deleteUser(user){
     if (!window.confirm(`Delete ${user.email}? This also deletes their toys and cannot be undone.`)) return
     setUpdatingId(user.id)
@@ -154,10 +174,18 @@ export default function Admin(){
     const isUpdating = updatingId === user.id
     return <li key={user.id} className="flex flex-col gap-3 border border-toydb-border bg-toydb-white p-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <div className="font-medium text-toydb-navy">{user.email}</div>
+        <div className="flex items-center gap-2">
+          <div className="font-medium text-toydb-navy">{user.email}</div>
+          {user.isAdmin && <span className="rounded-full bg-toydb-teal-pale px-2 py-0.5 text-[10px] font-medium text-toydb-teal-dark">Admin</span>}
+        </div>
         <div className="mt-1 text-xs text-toydb-slate">Requested {new Date(user.createdAt).toLocaleString()}</div>
       </div>
       <div className="flex flex-wrap gap-2">
+        {user.enabled && (
+          <button type="button" disabled={isUpdating} onClick={() => setAdminPrivilege(user, !user.isAdmin)} className={user.isAdmin ? 'border border-toydb-orange px-3 py-2 text-sm font-bold text-toydb-orange-dark hover:bg-toydb-orange-pale' : 'border border-toydb-teal px-3 py-2 text-sm font-bold text-toydb-teal-dark hover:bg-toydb-teal-pale'}>
+            {user.isAdmin ? 'Revoke Admin' : 'Make Admin'}
+          </button>
+        )}
         <button type="button" disabled={isUpdating} onClick={() => setEnabled(user, !user.enabled)} className={user.enabled ? 'border border-toydb-orange px-3 py-2 text-sm font-medium text-toydb-orange-dark hover:bg-toydb-orange-pale' : 'bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white hover:bg-toydb-teal-dark'}>{user.enabled ? 'Disable' : 'Approve'}</button>
         <button type="button" disabled={isUpdating} onClick={() => deleteUser(user)} className="border border-toydb-danger px-3 py-2 text-sm font-medium text-toydb-danger hover:bg-toydb-danger-pale">Delete</button>
       </div>

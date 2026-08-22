@@ -7,7 +7,7 @@ import TagPicker from './TagPicker'
 const conditions = ['Mint', 'Excellent', 'Good', 'Fair', 'Poor', 'Broken']
 
 export default function ToyForm({ wishlist = false, onCreated, onCancel }){
-  const [form, setForm] = useState({ name: '', manufacturer: '', series: '', sub_series: '', toyline: '', year: '', included: '', missing: '', broken: '', notes: '', condition: '', tagIds: [], cost: '', value: '', source: '' })
+  const [form, setForm] = useState({ name: '', manufacturer: '', series: '', sub_series: '', theme: '', toyline: '', year: '', included: '', missing: '', broken: '', notes: '', condition: '', tagIds: [], cost: '', value: '', source: '' })
   const [photos, setPhotos] = useState(null)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -15,7 +15,7 @@ export default function ToyForm({ wishlist = false, onCreated, onCancel }){
   const allTags = useTags()
 
   function updateField(field, value){ setForm(current => ({ ...current, [field]: value })) }
-  function reset(){ setForm({ name: '', manufacturer: '', series: '', sub_series: '', toyline: '', year: '', included: '', missing: '', broken: '', notes: '', condition: '', tagIds: [], cost: '', value: '', source: '' }); setPhotos(null) }
+  function reset(){ setForm({ name: '', manufacturer: '', series: '', sub_series: '', theme: '', toyline: '', year: '', included: '', missing: '', broken: '', notes: '', condition: '', tagIds: [], cost: '', value: '', source: '' }); setPhotos(null) }
 
   async function submit(event){
     event.preventDefault(); setError(null); setLoading(true)
@@ -45,6 +45,7 @@ export default function ToyForm({ wishlist = false, onCreated, onCancel }){
       <Field label="Toyline"><AutocompleteInput value={form.toyline} suggestions={suggestions.toyline} onChange={value => updateField('toyline', value)} /></Field>
       <Field label="Series"><AutocompleteInput value={form.series} suggestions={suggestions.series} onChange={value => updateField('series', value)} /></Field>
       <Field label="Sub-series"><AutocompleteInput value={form.sub_series} suggestions={suggestions.sub_series} onChange={value => updateField('sub_series', value)} /></Field>
+      <Field label="Theme"><AutocompleteInput value={form.theme} suggestions={suggestions.theme} onChange={value => updateField('theme', value)} /></Field>
       <Field label="Condition"><Select value={form.condition} options={conditions} onChange={value => updateField('condition', value)} /></Field>
       <Field label="Tags"><TagPicker allTags={allTags} selectedTagIds={form.tagIds} onChange={value => updateField('tagIds', value)} /></Field>
       <Field label="Notes"><textarea value={form.notes} onChange={event => updateField('notes', event.target.value)} className="w-full p-2 border rounded" /></Field>

@@ -19,7 +19,7 @@ export default function ToyCard({ toy, allowDelete = false, onDeleted }){
     Poor: 'bg-toydb-danger-pale text-toydb-danger',
     Broken: 'bg-toydb-border text-toydb-navy'
   }
-  const metaLine = [toy.series, toy.sub_series, toy.year, toy.manufacturer].filter(value => value !== null && value !== undefined && String(value).trim()).join(' • ')
+  const metaLine = [toy.series, toy.sub_series, toy.theme, toy.year, toy.manufacturer].filter(value => value !== null && value !== undefined && String(value).trim()).join(' • ')
 
   useEffect(() => {
     if (!isPhotoOpen) return
@@ -78,34 +78,24 @@ export default function ToyCard({ toy, allowDelete = false, onDeleted }){
 
       <div className="flex-1 flex flex-col">
         {actionError && <div className="mb-2 text-sm text-toydb-danger">{actionError}</div>}
-        {/* Name */}
-        <div className="font-bold text-toydb-navy line-clamp-2 break-words">{toy.name}</div>
+        <div className="flex items-start justify-between gap-2">
+          <div className="font-bold text-toydb-navy line-clamp-2 break-words flex-1">{toy.name}</div>
+          {toy.condition && <span className={`inline-block shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${conditionTone[toy.condition] || 'bg-toydb-cream text-toydb-slate'}`}>{toy.condition}</span>}
+        </div>
 
-        {/* Toyline and condition share one compact wrapping pill row */}
-        {(toy.toyline || toy.condition) && (
-          <div className="mt-1 flex flex-wrap gap-1">
-            {toy.toyline && <span className="inline-block bg-toydb-teal-pale text-toydb-teal-dark text-xs font-medium px-2 py-0.5 rounded-full">{toy.toyline}</span>}
-            {toy.condition && <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full ${conditionTone[toy.condition] || 'bg-toydb-cream text-toydb-slate'}`}>{toy.condition}</span>}
-          </div>
-        )}
+        {toy.toyline && <div className="mt-1 text-sm font-semibold text-toydb-navy"><span className="text-xs font-medium text-toydb-slate mr-1">Toyline:</span>{toy.toyline}</div>}
 
-        {/* Tags get their own wrapping row since a toy can have many */}
+        {metaLine && <div className="mt-1 text-xs text-toydb-slate">{metaLine}</div>}
+
         {toy.tags?.length > 0 && (
-          <div className="mt-1 flex flex-wrap gap-1">
+          <div className="mt-2 flex flex-wrap gap-1">
             {toy.tags.map(tag => <span key={tag.id} className="inline-block bg-toydb-cream text-toydb-slate text-xs font-medium px-2 py-0.5 rounded-full">{tag.name}</span>)}
           </div>
         )}
 
-        {/* Series, sub-series, year, and manufacturer collapse into a single wrapping line */}
-        {metaLine && <div className="mt-1 text-xs text-toydb-slate">{metaLine}</div>}
-
-        {!expanded && toy.notes && (
-          <div className="mt-1 text-xs text-toydb-slate"><span className="font-semibold text-toydb-navy">Notes:</span> {toy.notes}</div>
-        )}
-
         {expanded && (
           <>
-            {toy.notes && <div className="mt-2 text-xs text-toydb-slate"><span className="font-semibold text-toydb-navy">Notes:</span> {toy.notes}</div>}
+            <div className="mt-2 text-xs text-toydb-slate"><span className="font-semibold text-toydb-navy">Notes:</span> {toy.notes || 'None'}</div>
             <div className="mt-1 text-xs text-toydb-slate"><span className="font-semibold text-toydb-navy">Included:</span> {toy.included || toy.accessories || 'None'}</div>
             <div className="mt-1 text-xs text-toydb-slate"><span className="font-semibold text-toydb-navy">Missing:</span> {toy.missing || 'None'}</div>
             <div className="mt-1 text-xs text-toydb-slate"><span className="font-semibold text-toydb-navy">Broken:</span> {toy.broken || 'None'}</div>

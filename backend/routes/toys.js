@@ -56,7 +56,7 @@ const csvUpload = multer({
   }
 });
 
-const importColumns = ['name', 'manufacturer', 'series', 'sub_series', 'toyline', 'year', 'cost', 'value', 'source', 'notes', 'included', 'missing', 'broken', 'condition', 'tags', 'wishlist'];
+const importColumns = ['name', 'manufacturer', 'series', 'sub_series', 'theme', 'toyline', 'year', 'cost', 'value', 'source', 'notes', 'included', 'missing', 'broken', 'condition', 'tags', 'wishlist'];
 
 // Replace a toy's tag assignments with the given list of tag ids.
 async function setToyTags(toyId, tagIds) {
@@ -113,7 +113,7 @@ function parseCsv(text) {
   return rows.filter(r => !(r.length === 1 && r[0].trim() === ''));
 }
 
-const suggestionFields = ['manufacturer', 'toyline', 'series', 'sub_series', 'source'];
+const suggestionFields = ['manufacturer', 'toyline', 'series', 'sub_series', 'theme', 'source'];
 
 // Return the current user's previous values for form autocomplete.
 router.get('/suggestions', authenticate, async (req, res) => {
@@ -136,13 +136,13 @@ router.get('/suggestions', authenticate, async (req, res) => {
 // Create toy
 router.post('/', authenticate, upload.array('photos', 8), async (req, res) => {
   const userId = req.user.id;
-  const { name, manufacturer, series, sub_series, toyline, year, included, missing, broken, condition, cost, value, source, notes, wishlist, tags } = req.body || {};
+  const { name, manufacturer, series, sub_series, theme, toyline, year, included, missing, broken, condition, cost, value, source, notes, wishlist, tags } = req.body || {};
   if (!name) return res.status(400).json({ error: 'Name is required' });
   try {
     const photos = await preparePhotos(req.files || []);
     const [result] = await pool.query(
-      'INSERT INTO toys (user_id, is_wishlist, name, manufacturer, series, sub_series, toyline, `year`, cost, `value`, source, notes, included, missing, broken, `condition`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [userId, wishlist === 'true' || wishlist === true, name, manufacturer || null, series || null, sub_series || null, toyline || null, year ? parseInt(year) : null, cost ? parseFloat(cost) : null, value ? parseFloat(value) : null, source || null, notes || null, included || null, missing || null, broken || null, condition || null]
+      'INSERT INTO toys (user_id, is_wishlist, name, manufacturer, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, included, missing, broken, `condition`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [userId, wishlist === 'true' || wishlist === true, name, manufacturer || null, series || null, sub_series || null, theme || null, toyline || null, year ? parseInt(year) : null, cost ? parseFloat(cost) : null, value ? parseFloat(value) : null, source || null, notes || null, included || null, missing || null, broken || null, condition || null]
     );
     const toyId = result.insertId;
     await setToyTags(toyId, parseTagIds(tags));
@@ -214,8 +214,8 @@ router.post('/import', authenticate, csvUpload.single('file'), async (req, res) 
 
     try {
       const [result] = await pool.query(
-        'INSERT INTO toys (user_id, is_wishlist, name, manufacturer, series, sub_series, toyline, `year`, cost, `value`, source, notes, included, missing, broken, `condition`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [userId, isWishlist, record.name, record.manufacturer || null, record.series || null, record.sub_series || null, record.toyline || null, year, cost, value, record.source || null, record.notes || null, includedValue || null, record.missing || null, brokenValue || null, record.condition || null]
+        'INSERT INTO toys (user_id, is_wishlist, name, manufacturer, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, included, missing, broken, `condition`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [userId, isWishlist, record.name, record.manufacturer || null, record.series || null, record.sub_series || null, record.theme || null, record.toyline || null, year, cost, value, record.source || null, record.notes || null, includedValue || null, record.missing || null, brokenValue || null, record.condition || null]
       );
       await setToyTags(result.insertId, tagIds);
       if (unknownTagNames.length) errors.push({ row: rowNumber, error: `Imported, but ignored unknown tags: ${unknownTagNames.join(', ')}` });
@@ -229,12 +229,79 @@ router.post('/import', authenticate, csvUpload.single('file'), async (req, res) 
   res.json({ ok: true, imported, errors });
 });
 
+// Get distinct values for a field from the user's collection.
+router.get('/bulk-values', authenticate, async (req, res) => {
+  const allowedFields = new Set(['toyline', 'manufacturer', 'series', 'sub_series', 'year']);
+  const field = req.query.field;
+  if (!allowedFields.has(field)) return res.status(400).json({ error: 'Invalid field' });
+
+  try {
+    let q = '';
+    const params = [req.user.id];
+
+    if (field === 'year') {
+      q = 'SELECT DISTINCT `year` AS value FROM toys WHERE user_id = ? AND is_wishlist = 0 AND `year` IS NOT NULL ORDER BY `year`';
+    } else {
+      q = `SELECT DISTINCT ${field} AS value FROM toys WHERE user_id = ? AND is_wishlist = 0 AND ${field} IS NOT NULL AND TRIM(${field}) <> '' ORDER BY ${field}`;
+    }
+
+    const [rows] = await pool.query(q, params);
+    res.json({ values: rows.map(row => row.value) });
+  } catch (err) {
+    console.error('Bulk value lookup error', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Bulk delete toys from the user's collection matching a selected field/value.
+router.post('/bulk-delete', authenticate, async (req, res) => {
+  const userId = req.user.id;
+  const { field, value } = req.body || {};
+  const allowedFields = new Set(['toyline', 'manufacturer', 'series', 'sub_series', 'year']);
+
+  if (!allowedFields.has(field)) return res.status(400).json({ error: 'Invalid field' });
+  if (value === undefined || value === null || String(value).trim() === '') return res.status(400).json({ error: 'Value is required' });
+
+  let query = '';
+  let params = [userId];
+
+  try {
+    if (field === 'year') {
+      const year = Number(value);
+      if (!Number.isInteger(year)) return res.status(400).json({ error: 'Year must be a whole number' });
+      query = 'SELECT id FROM toys WHERE user_id = ? AND is_wishlist = 0 AND `year` = ?';
+      params.push(year);
+    } else {
+      query = `SELECT id FROM toys WHERE user_id = ? AND is_wishlist = 0 AND ${field} = ?`;
+      params.push(String(value).trim());
+    }
+
+    const [rows] = await pool.query(query, params);
+    if (!rows.length) return res.json({ ok: true, deleted: 0 });
+
+    const toyIds = rows.map(row => row.id);
+    const [photos] = await pool.query('SELECT filename FROM toy_photos WHERE toy_id IN (?)', [toyIds]);
+    for (const photo of photos) {
+      const fp = path.join(uploadsDir, photo.filename);
+      try { fs.unlinkSync(fp); } catch (e) {}
+    }
+
+    await pool.query('DELETE FROM toy_photos WHERE toy_id IN (?)', [toyIds]);
+    await pool.query('DELETE FROM toys WHERE id IN (?)', [toyIds]);
+
+    res.json({ ok: true, deleted: toyIds.length });
+  } catch (err) {
+    console.error('Bulk delete error', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Get all toys for user
 router.get('/', authenticate, async (req, res) => {
   const userId = req.user.id;
   const wishlist = req.query.wishlist === 'true' ? 1 : 0;
   try {
-    const [toys] = await pool.query('SELECT id, is_wishlist, name, manufacturer, series, sub_series, toyline, `year`, cost, `value`, source, notes, included, missing, broken, `condition`, created_at FROM toys WHERE user_id = ? AND is_wishlist = ?', [userId, wishlist]);
+    const [toys] = await pool.query('SELECT id, is_wishlist, name, manufacturer, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, included, missing, broken, `condition`, created_at FROM toys WHERE user_id = ? AND is_wishlist = ?', [userId, wishlist]);
     // fetch photos for each toy
     for (const t of toys) {
       const [photos] = await pool.query('SELECT id, filename, original_name FROM toy_photos WHERE toy_id = ?', [t.id]);
@@ -253,7 +320,7 @@ router.get('/:id', authenticate, async (req, res) => {
   const userId = req.user.id;
   const id = req.params.id;
   try {
-    const [rows] = await pool.query('SELECT id, is_wishlist, name, manufacturer, series, sub_series, toyline, `year`, cost, `value`, source, notes, included, missing, broken, `condition`, created_at FROM toys WHERE id = ? AND user_id = ?', [id, userId]);
+    const [rows] = await pool.query('SELECT id, is_wishlist, name, manufacturer, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, included, missing, broken, `condition`, created_at FROM toys WHERE id = ? AND user_id = ?', [id, userId]);
     if (!rows.length) return res.status(404).json({ error: 'Toy not found' });
     const toy = rows[0];
     const [photos] = await pool.query('SELECT id, filename, original_name FROM toy_photos WHERE toy_id = ?', [toy.id]);
@@ -270,10 +337,10 @@ router.get('/:id', authenticate, async (req, res) => {
 router.put('/:id', authenticate, async (req, res) => {
   const userId = req.user.id;
   const id = req.params.id;
-  const { name, manufacturer, series, sub_series, toyline, year, included, missing, broken, condition, cost, value, source, notes, tags } = req.body || {};
+  const { name, manufacturer, series, sub_series, theme, toyline, year, included, missing, broken, condition, cost, value, source, notes, tags } = req.body || {};
   if (!name) return res.status(400).json({ error: 'Name is required' });
   try {
-    const [result] = await pool.query('UPDATE toys SET name=?, manufacturer=?, series=?, sub_series=?, toyline=?, `year`=?, cost=?, `value`=?, source=?, notes=?, included=?, missing=?, broken=?, `condition`=? WHERE id=? AND user_id=?', [name, manufacturer || null, series || null, sub_series || null, toyline || null, year ? parseInt(year) : null, cost ? parseFloat(cost) : null, value ? parseFloat(value) : null, source || null, notes || null, included || null, missing || null, broken || null, condition || null, id, userId]);
+    const [result] = await pool.query('UPDATE toys SET name=?, manufacturer=?, series=?, sub_series=?, theme=?, toyline=?, `year`=?, cost=?, `value`=?, source=?, notes=?, included=?, missing=?, broken=?, `condition`=? WHERE id=? AND user_id=?', [name, manufacturer || null, series || null, sub_series || null, theme || null, toyline || null, year ? parseInt(year) : null, cost ? parseFloat(cost) : null, value ? parseFloat(value) : null, source || null, notes || null, included || null, missing || null, broken || null, condition || null, id, userId]);
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Toy not found' });
     await setToyTags(id, parseTagIds(tags));
     res.json({ ok: true });

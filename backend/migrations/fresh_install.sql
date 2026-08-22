@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS toys (
   manufacturer VARCHAR(255),
   series VARCHAR(255),
   sub_series VARCHAR(255),
+  theme VARCHAR(255),
   toyline VARCHAR(255),
   `year` SMALLINT UNSIGNED,
   cost DECIMAL(10,2),

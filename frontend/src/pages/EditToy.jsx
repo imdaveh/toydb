@@ -37,7 +37,7 @@ export default function EditToy(){
       setToy(data.toy)
       setForm({
         name: data.toy.name || '', manufacturer: data.toy.manufacturer || '', series: data.toy.series || '',
-        sub_series: data.toy.sub_series || '', toyline: data.toy.toyline || '', year: data.toy.year || '',
+        sub_series: data.toy.sub_series || '', theme: data.toy.theme || '', toyline: data.toy.toyline || '', year: data.toy.year || '',
         included: data.toy.included || data.toy.accessories || '', missing: data.toy.missing || '', broken: data.toy.broken || '', notes: data.toy.notes || '',
         condition: data.toy.condition || '', tagIds: (data.toy.tags || []).map(tag => tag.id), cost: data.toy.cost || '',
         value: data.toy.value || '', source: data.toy.source || ''
@@ -124,6 +124,7 @@ export default function EditToy(){
         <Field label="Toyline"><AutocompleteInput value={form.toyline} suggestions={suggestions.toyline} onChange={value => updateField('toyline', value)} /></Field>
         <Field label="Series"><AutocompleteInput value={form.series} suggestions={suggestions.series} onChange={value => updateField('series', value)} /></Field>
         <Field label="Sub-series"><AutocompleteInput value={form.sub_series} suggestions={suggestions.sub_series} onChange={value => updateField('sub_series', value)} /></Field>
+        <Field label="Theme"><AutocompleteInput value={form.theme} suggestions={suggestions.theme} onChange={value => updateField('theme', value)} /></Field>
         <Field label="Condition"><Select value={form.condition} values={conditions} onChange={value => updateField('condition', value)} /></Field>
         <Field label="Tags"><TagPicker allTags={allTags} selectedTagIds={form.tagIds || []} onChange={value => updateField('tagIds', value)} /></Field>
         <Field label="Notes"><textarea value={form.notes || ''} onChange={event => updateField('notes', event.target.value)} className="w-full p-2 border rounded" /></Field>
