@@ -7,7 +7,7 @@ import TagPicker from './TagPicker'
 const conditions = ['Mint', 'Excellent', 'Good', 'Fair', 'Poor', 'Broken']
 
 export default function ToyForm({ wishlist = false, onCreated, onCancel }){
-  const [form, setForm] = useState({ name: '', manufacturer: '', series: '', sub_series: '', theme: '', toyline: '', year: '', included: '', missing: '', broken: '', notes: '', condition: '', tagIds: [], cost: '', value: '', source: '' })
+  const [form, setForm] = useState({ name: '', manufacturer: '', series: '', sub_series: '', theme: '', toyline: '', year: '', included: '', missing: '', broken: '', notes: '', condition: '', tagIds: [], cost: '', value: '', source: '', for_sale: false })
   const [photos, setPhotos] = useState(null)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -15,7 +15,7 @@ export default function ToyForm({ wishlist = false, onCreated, onCancel }){
   const allTags = useTags()
 
   function updateField(field, value){ setForm(current => ({ ...current, [field]: value })) }
-  function reset(){ setForm({ name: '', manufacturer: '', series: '', sub_series: '', theme: '', toyline: '', year: '', included: '', missing: '', broken: '', notes: '', condition: '', tagIds: [], cost: '', value: '', source: '' }); setPhotos(null) }
+  function reset(){ setForm({ name: '', manufacturer: '', series: '', sub_series: '', theme: '', toyline: '', year: '', included: '', missing: '', broken: '', notes: '', condition: '', tagIds: [], cost: '', value: '', source: '', for_sale: false }); setPhotos(null) }
 
   async function submit(event){
     event.preventDefault(); setError(null); setLoading(true)
@@ -27,6 +27,7 @@ export default function ToyForm({ wishlist = false, onCreated, onCancel }){
       Object.entries(form).forEach(([field, value]) => { if (field !== 'tagIds') data.append(field, value) })
       data.append('tags', JSON.stringify(form.tagIds))
       data.append('wishlist', wishlist)
+      data.append('for_sale', Boolean(form.for_sale))
       if (photos) Array.from(photos).forEach(photo => data.append('photos', photo))
       const response = await fetch(import.meta.env.VITE_API_BASE + '/toys', { method: 'POST', credentials: 'include', headers: { Authorization: 'Bearer ' + token }, body: data })
       const result = await response.json()

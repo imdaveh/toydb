@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 
-export default function ToyCard({ toy, allowDelete = false, onDeleted }){
+export default function ToyCard({ toy, allowDelete = false, onDeleted, returnState = null, deleteLabel = 'Delete' }){
   const navigate = useNavigate()
+  const location = useLocation()
   const [expanded, setExpanded] = useState(false)
   const [isPhotoOpen, setIsPhotoOpen] = useState(false)
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0)
@@ -36,8 +37,14 @@ export default function ToyCard({ toy, allowDelete = false, onDeleted }){
     return () => document.removeEventListener('keydown', closeOnEscape)
   }, [isPhotoOpen, photos.length])
 
+  const actionButtonLabel = deleting ? (deleteLabel === 'Sold' ? 'Marking...' : 'Deleting...') : deleteLabel
+
   async function deleteToy(){
-    if (!window.confirm(`Delete ${toy.name} from your wishlist? This cannot be undone.`)) return
+    const confirmMessage = deleteLabel === 'Sold'
+      ? `Mark ${toy.name} as sold and remove it from your collection?`
+      : `Delete ${toy.name} from your wishlist? This cannot be undone.`
+
+    if (!window.confirm(confirmMessage)) return
     setDeleting(true)
     setActionError(null)
     try {
@@ -60,20 +67,27 @@ export default function ToyCard({ toy, allowDelete = false, onDeleted }){
 
   return (
     <div className="p-3 bg-toydb-white border border-toydb-border rounded-xl flex gap-3 items-stretch shadow-sm">
-      <div className="w-24 h-24 bg-toydb-cream flex items-center justify-center overflow-hidden rounded-lg">
-        {photo ? (
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedPhotoIndex(0)
-              setIsPhotoOpen(true)
-            }}
-            className="w-full h-full cursor-zoom-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-toydb-teal"
-            aria-label={`Enlarge photo of ${toy.name}`}
-          >
-            <img src={photoUrl} alt={photo.name} className="object-contain w-full h-full" />
-          </button>
-        ) : <div className="text-xs text-toydb-slate">No photo</div>}
+      <div className="w-24 flex flex-col items-stretch">
+        <div className="w-24 h-24 bg-toydb-cream flex items-center justify-center overflow-hidden rounded-lg">
+          {photo ? (
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedPhotoIndex(0)
+                setIsPhotoOpen(true)
+              }}
+              className="w-full h-full cursor-zoom-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-toydb-teal"
+              aria-label={`Enlarge photo of ${toy.name}`}
+            >
+              <img src={photoUrl} alt={photo.name} className="object-contain w-full h-full" />
+            </button>
+          ) : <div className="text-xs text-toydb-slate">No photo</div>}
+        </div>
+        {photos.length > 1 && (
+          <div className="mt-1 text-center text-[10px] font-medium text-toydb-slate">
+            {photos.length} photos
+          </div>
+        )}
       </div>
 
       <div className="flex-1 flex flex-col">
@@ -86,6 +100,12 @@ export default function ToyCard({ toy, allowDelete = false, onDeleted }){
         {toy.toyline && <div className="mt-1 text-sm font-semibold text-toydb-navy"><span className="text-xs font-medium text-toydb-slate mr-1">Toyline:</span>{toy.toyline}</div>}
 
         {metaLine && <div className="mt-1 text-xs text-toydb-slate">{metaLine}</div>}
+
+        {Boolean(toy.for_sale) && (
+          <div className="mt-2 inline-flex w-fit items-center rounded-full border border-toydb-orange bg-toydb-orange-pale px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-toydb-orange-dark">
+            For Sale
+          </div>
+        )}
 
         {toy.tags?.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
@@ -109,15 +129,15 @@ export default function ToyCard({ toy, allowDelete = false, onDeleted }){
         <div className="mt-auto flex justify-end items-center gap-2 text-sm">
           { !expanded ? (
             <>
-              <button onClick={()=>navigate('/toys/' + toy.id + '/edit')} className="text-sm font-medium text-toydb-teal-dark hover:text-toydb-orange-dark">Edit</button>
-              {allowDelete && <><span className="text-toydb-border px-1">|</span><button type="button" onClick={deleteToy} disabled={deleting} className="text-sm font-medium text-toydb-danger hover:text-toydb-orange-dark disabled:cursor-not-allowed disabled:opacity-60">{deleting ? 'Deleting...' : 'Delete'}</button></>}
+              <button onClick={()=>navigate('/toys/' + toy.id + '/edit', { state: { from: { pathname: location.pathname, state: returnState || {} } } })} className="text-sm font-medium text-toydb-teal-dark hover:text-toydb-orange-dark">Edit</button>
+              {allowDelete && <><span className="text-toydb-border px-1">|</span><button type="button" onClick={deleteToy} disabled={deleting} className="text-sm font-medium text-toydb-danger hover:text-toydb-orange-dark disabled:cursor-not-allowed disabled:opacity-60">{actionButtonLabel}</button></>}
               <span className="text-toydb-border px-1">|</span>
               <button onClick={()=>setExpanded(true)} className="text-sm font-medium text-toydb-teal-dark hover:text-toydb-orange-dark">More</button>
             </>
           ) : (
             <>
-              <button onClick={()=>navigate('/toys/' + toy.id + '/edit')} className="text-sm font-medium text-toydb-teal-dark hover:text-toydb-orange-dark">Edit</button>
-              {allowDelete && <><span className="text-toydb-border px-1">|</span><button type="button" onClick={deleteToy} disabled={deleting} className="text-sm font-medium text-toydb-danger hover:text-toydb-orange-dark disabled:cursor-not-allowed disabled:opacity-60">{deleting ? 'Deleting...' : 'Delete'}</button></>}
+              <button onClick={()=>navigate('/toys/' + toy.id + '/edit', { state: { from: { pathname: location.pathname, state: returnState || {} } } })} className="text-sm font-medium text-toydb-teal-dark hover:text-toydb-orange-dark">Edit</button>
+              {allowDelete && <><span className="text-toydb-border px-1">|</span><button type="button" onClick={deleteToy} disabled={deleting} className="text-sm font-medium text-toydb-danger hover:text-toydb-orange-dark disabled:cursor-not-allowed disabled:opacity-60">{actionButtonLabel}</button></>}
               <span className="text-toydb-border px-1">|</span>
               <button onClick={()=>setExpanded(false)} className="text-sm text-toydb-slate hover:text-toydb-navy">Less</button>
             </>
@@ -133,36 +153,58 @@ export default function ToyCard({ toy, allowDelete = false, onDeleted }){
           aria-label={`${toy.name} photo`}
           onClick={() => setIsPhotoOpen(false)}
         >
-          <div className="relative flex max-h-[85vh] w-full max-w-5xl items-center justify-center gap-2" onClick={(event) => event.stopPropagation()}>
-            {photos.length > 1 && (
+          <div className="relative flex max-h-[85vh] w-full max-w-5xl flex-col items-center justify-center gap-3" onClick={(event) => event.stopPropagation()}>
+            <div className="relative flex w-full items-center justify-center gap-2">
+              {photos.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedPhotoIndex((current) => (current - 1 + photos.length) % photos.length)}
+                  className="z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-toydb-teal-light bg-toydb-teal p-0 text-2xl leading-none text-toydb-white shadow-md hover:bg-toydb-teal-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-toydb-cream"
+                  aria-label="View previous photo"
+                >
+                  &larr;
+                </button>
+              )}
+              <img src={photoUrl} alt={photo.name} className="h-auto min-w-0 max-h-[75vh] max-w-full flex-1 object-contain" />
+              {photos.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedPhotoIndex((current) => (current + 1) % photos.length)}
+                  className="z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-toydb-teal-light bg-toydb-teal p-0 text-2xl leading-none text-toydb-white shadow-md hover:bg-toydb-teal-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-toydb-cream"
+                  aria-label="View next photo"
+                >
+                  &rarr;
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => setSelectedPhotoIndex((current) => (current - 1 + photos.length) % photos.length)}
-                className="z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-toydb-teal-light bg-toydb-teal p-0 text-2xl leading-none text-toydb-white shadow-md hover:bg-toydb-teal-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-toydb-cream"
-                aria-label="View previous photo"
+                onClick={() => setIsPhotoOpen(false)}
+                className="absolute right-2 top-2 flex h-10 w-10 items-center justify-center rounded-full border border-toydb-orange-light bg-toydb-orange p-0 text-xl leading-none text-toydb-white shadow-md hover:bg-toydb-orange-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-toydb-cream"
+                aria-label="Close enlarged photo"
               >
-                &larr;
+                &times;
               </button>
-            )}
-            <img src={photoUrl} alt={photo.name} className="h-auto min-w-0 max-h-[80vh] max-w-full flex-1 object-contain" />
+            </div>
+
             {photos.length > 1 && (
-              <button
-                type="button"
-                onClick={() => setSelectedPhotoIndex((current) => (current + 1) % photos.length)}
-                className="z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-toydb-teal-light bg-toydb-teal p-0 text-2xl leading-none text-toydb-white shadow-md hover:bg-toydb-teal-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-toydb-cream"
-                aria-label="View next photo"
-              >
-                &rarr;
-              </button>
+              <div className="flex max-w-full flex-wrap justify-center gap-2 rounded-lg bg-toydb-white/10 p-2 backdrop-blur-sm">
+                {photos.map((item, index) => {
+                  const isActive = index === selectedPhotoIndex
+                  const thumbUrl = import.meta.env.VITE_API_BASE + item.url
+                  return (
+                    <button
+                      key={item.id || `${item.url}-${index}`}
+                      type="button"
+                      onClick={() => setSelectedPhotoIndex(index)}
+                      className={`overflow-hidden rounded-lg border-2 bg-toydb-white shadow-sm transition ${isActive ? 'border-toydb-orange scale-[1.02]' : 'border-transparent hover:border-toydb-teal-light'}`}
+                      aria-label={`View photo ${index + 1} of ${photos.length}`}
+                    >
+                      <img src={thumbUrl} alt={`${toy.name} photo ${index + 1}`} className="h-12 w-12 object-cover" />
+                    </button>
+                  )
+                })}
+              </div>
             )}
-            <button
-              type="button"
-              onClick={() => setIsPhotoOpen(false)}
-              className="absolute right-2 top-2 flex h-10 w-10 items-center justify-center rounded-full border border-toydb-orange-light bg-toydb-orange p-0 text-xl leading-none text-toydb-white shadow-md hover:bg-toydb-orange-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-toydb-cream"
-              aria-label="Close enlarged photo"
-            >
-              &times;
-            </button>
           </div>
         </div>
       )}

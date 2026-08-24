@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import useToySuggestions from '../hooks/useToySuggestions'
 import useTags from '../hooks/useTags'
 import AutocompleteInput from '../components/AutocompleteInput'
@@ -10,6 +10,7 @@ const conditions = ['Mint', 'Excellent', 'Good', 'Fair', 'Poor', 'Broken']
 export default function EditToy(){
   const { id } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const [toy, setToy] = useState(null)
   const [form, setForm] = useState({})
   const [photosFiles, setPhotosFiles] = useState([])
@@ -40,7 +41,7 @@ export default function EditToy(){
         sub_series: data.toy.sub_series || '', theme: data.toy.theme || '', toyline: data.toy.toyline || '', year: data.toy.year || '',
         included: data.toy.included || data.toy.accessories || '', missing: data.toy.missing || '', broken: data.toy.broken || '', notes: data.toy.notes || '',
         condition: data.toy.condition || '', tagIds: (data.toy.tags || []).map(tag => tag.id), cost: data.toy.cost || '',
-        value: data.toy.value || '', source: data.toy.source || ''
+        value: data.toy.value || '', source: data.toy.source || '', for_sale: Boolean(data.toy.for_sale)
       })
     } catch (error) { setError('Server error') }
     setLoading(false)
@@ -48,12 +49,22 @@ export default function EditToy(){
 
   useEffect(() => { load() }, [id])
 
+  function goBackToPreviousView(){
+    const returnTarget = location.state?.from || (toy.is_wishlist ? '/wishlist' : '/dashboard')
+    const returnPath = typeof returnTarget === 'string' ? returnTarget : returnTarget?.pathname || (toy.is_wishlist ? '/wishlist' : '/dashboard')
+    const returnState = typeof returnTarget === 'string'
+      ? { refresh: Date.now() }
+      : { ...(returnTarget?.state || {}), refresh: Date.now() }
+
+    navigate(returnPath, { state: returnState })
+  }
+
   async function save(){
     setBusy(true); setError(null)
     const token = await getToken()
     if (!token) { setError('Not authenticated'); setBusy(false); return }
     try {
-      const response = await fetch(import.meta.env.VITE_API_BASE + '/toys/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ ...form, tags: form.tagIds }) })
+      const response = await fetch(import.meta.env.VITE_API_BASE + '/toys/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ ...form, tags: form.tagIds, for_sale: Boolean(form.for_sale) }) })
       const data = await response.json()
       if (!response.ok) { setError(data.error || 'Failed'); setBusy(false); return }
       if (photosFiles.length) {
@@ -62,9 +73,10 @@ export default function EditToy(){
         const upload = await fetch(import.meta.env.VITE_API_BASE + '/toys/' + id + '/photos', { method: 'POST', credentials: 'include', headers: { Authorization: 'Bearer ' + token }, body: uploadData })
         if (!upload.ok) { setError((await upload.json()).error || 'Photo upload failed'); setBusy(false); return }
       }
-      navigate(toy.is_wishlist ? '/wishlist' : '/dashboard', { state: { refresh: Date.now() } })
+      goBackToPreviousView()
+      return
     } catch (error) { setError('Server error') }
-    setBusy(false)
+    finally { setBusy(false) }
   }
 
   async function deleteToy(){
@@ -75,9 +87,10 @@ export default function EditToy(){
     try {
       const response = await fetch(import.meta.env.VITE_API_BASE + '/toys/' + id, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } })
       if (!response.ok) { setError((await response.json()).error || 'Failed'); setBusy(false); return }
-      navigate(toy.is_wishlist ? '/wishlist' : '/dashboard', { state: { refresh: Date.now() } })
+      goBackToPreviousView()
+      return
     } catch (error) { setError('Server error') }
-    setBusy(false)
+    finally { setBusy(false) }
   }
 
   async function moveToCollection(){
@@ -126,6 +139,10 @@ export default function EditToy(){
         <Field label="Sub-series"><AutocompleteInput value={form.sub_series} suggestions={suggestions.sub_series} onChange={value => updateField('sub_series', value)} /></Field>
         <Field label="Theme"><AutocompleteInput value={form.theme} suggestions={suggestions.theme} onChange={value => updateField('theme', value)} /></Field>
         <Field label="Condition"><Select value={form.condition} values={conditions} onChange={value => updateField('condition', value)} /></Field>
+        <div className="flex items-center gap-2 rounded border border-toydb-border bg-toydb-cream px-3 py-2">
+          <input id="for-sale-checkbox" type="checkbox" checked={Boolean(form.for_sale)} onChange={event => updateField('for_sale', event.target.checked)} className="h-4 w-4 rounded border-toydb-border text-toydb-orange focus:ring-toydb-orange" />
+          <label htmlFor="for-sale-checkbox" className="text-sm font-medium text-toydb-navy">For Sale</label>
+        </div>
         <Field label="Tags"><TagPicker allTags={allTags} selectedTagIds={form.tagIds || []} onChange={value => updateField('tagIds', value)} /></Field>
         <Field label="Notes"><textarea value={form.notes || ''} onChange={event => updateField('notes', event.target.value)} className="w-full p-2 border rounded" /></Field>
         <Field label="Included"><textarea value={form.included || ''} onChange={event => updateField('included', event.target.value)} className="w-full p-2 border rounded" /></Field>
@@ -139,7 +156,7 @@ export default function EditToy(){
         </div>
         <div><h4 className="font-semibold">Existing Photos</h4><div className="grid grid-cols-3 gap-2 mt-2">{toy.photos?.length ? toy.photos.map(photo => <div key={photo.id} className="relative w-24"><div className="w-24 h-24 bg-toydb-cream flex items-center justify-center overflow-hidden rounded-lg"><img src={import.meta.env.VITE_API_BASE + photo.url} alt={photo.name} className="object-contain w-full h-full" /></div><button onClick={() => deletePhoto(photo.id)} className="absolute top-1 right-1 bg-toydb-danger text-toydb-white text-xs px-2 py-0.5 rounded">Delete</button></div>) : <div className="text-sm text-toydb-slate">No photos</div>}</div></div>
         <div className="mt-3 space-y-2">
-          <div className="grid grid-cols-3 gap-2"><button onClick={() => navigate(toy.is_wishlist ? '/wishlist' : '/dashboard', { state: { refresh: Date.now() } })} className="w-full border border-toydb-border bg-toydb-white p-2 text-toydb-navy rounded-lg">Cancel</button><button onClick={deleteToy} disabled={busy} className="w-full bg-toydb-danger p-2 text-toydb-white rounded-lg">Delete Toy</button><button onClick={save} disabled={busy} className="w-full bg-toydb-teal p-2 font-medium text-toydb-white rounded-lg">{busy ? 'Saving...' : 'Save Toy'}</button></div>
+          <div className="grid grid-cols-3 gap-2"><button onClick={goBackToPreviousView} className="w-full border border-toydb-border bg-toydb-white p-2 text-toydb-navy rounded-lg">Cancel</button><button onClick={deleteToy} disabled={busy} className="w-full bg-toydb-danger p-2 text-toydb-white rounded-lg">Delete Toy</button><button onClick={save} disabled={busy} className="w-full bg-toydb-teal p-2 font-medium text-toydb-white rounded-lg">{busy ? 'Saving...' : 'Save Toy'}</button></div>
           {Boolean(toy.is_wishlist) && <button onClick={moveToCollection} disabled={busy} className="w-full rounded-lg bg-toydb-gold p-2 font-medium text-toydb-navy hover:bg-toydb-gold-dark hover:text-toydb-white disabled:cursor-not-allowed disabled:opacity-60">Move to My Collection</button>}
         </div>
       </div>

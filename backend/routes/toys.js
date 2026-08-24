@@ -136,13 +136,13 @@ router.get('/suggestions', authenticate, async (req, res) => {
 // Create toy
 router.post('/', authenticate, upload.array('photos', 8), async (req, res) => {
   const userId = req.user.id;
-  const { name, manufacturer, series, sub_series, theme, toyline, year, included, missing, broken, condition, cost, value, source, notes, wishlist, tags } = req.body || {};
+  const { name, manufacturer, series, sub_series, theme, toyline, year, included, missing, broken, condition, cost, value, source, notes, wishlist, for_sale, tags } = req.body || {};
   if (!name) return res.status(400).json({ error: 'Name is required' });
   try {
     const photos = await preparePhotos(req.files || []);
     const [result] = await pool.query(
-      'INSERT INTO toys (user_id, is_wishlist, name, manufacturer, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, included, missing, broken, `condition`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [userId, wishlist === 'true' || wishlist === true, name, manufacturer || null, series || null, sub_series || null, theme || null, toyline || null, year ? parseInt(year) : null, cost ? parseFloat(cost) : null, value ? parseFloat(value) : null, source || null, notes || null, included || null, missing || null, broken || null, condition || null]
+      'INSERT INTO toys (user_id, is_wishlist, for_sale, name, manufacturer, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, included, missing, broken, `condition`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [userId, wishlist === 'true' || wishlist === true, for_sale === 'true' || for_sale === true, name, manufacturer || null, series || null, sub_series || null, theme || null, toyline || null, year ? parseInt(year) : null, cost ? parseFloat(cost) : null, value ? parseFloat(value) : null, source || null, notes || null, included || null, missing || null, broken || null, condition || null]
     );
     const toyId = result.insertId;
     await setToyTags(toyId, parseTagIds(tags));
@@ -214,8 +214,8 @@ router.post('/import', authenticate, csvUpload.single('file'), async (req, res) 
 
     try {
       const [result] = await pool.query(
-        'INSERT INTO toys (user_id, is_wishlist, name, manufacturer, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, included, missing, broken, `condition`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [userId, isWishlist, record.name, record.manufacturer || null, record.series || null, record.sub_series || null, record.theme || null, record.toyline || null, year, cost, value, record.source || null, record.notes || null, includedValue || null, record.missing || null, brokenValue || null, record.condition || null]
+        'INSERT INTO toys (user_id, is_wishlist, for_sale, name, manufacturer, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, included, missing, broken, `condition`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [userId, isWishlist, false, record.name, record.manufacturer || null, record.series || null, record.sub_series || null, record.theme || null, record.toyline || null, year, cost, value, record.source || null, record.notes || null, includedValue || null, record.missing || null, brokenValue || null, record.condition || null]
       );
       await setToyTags(result.insertId, tagIds);
       if (unknownTagNames.length) errors.push({ row: rowNumber, error: `Imported, but ignored unknown tags: ${unknownTagNames.join(', ')}` });
@@ -231,7 +231,7 @@ router.post('/import', authenticate, csvUpload.single('file'), async (req, res) 
 
 // Get distinct values for a field from the user's collection.
 router.get('/bulk-values', authenticate, async (req, res) => {
-  const allowedFields = new Set(['toyline', 'manufacturer', 'series', 'sub_series', 'year']);
+  const allowedFields = new Set(['toyline', 'manufacturer', 'series', 'sub_series', 'theme', 'year', 'condition']);
   const field = req.query.field;
   if (!allowedFields.has(field)) return res.status(400).json({ error: 'Invalid field' });
 
@@ -241,6 +241,8 @@ router.get('/bulk-values', authenticate, async (req, res) => {
 
     if (field === 'year') {
       q = 'SELECT DISTINCT `year` AS value FROM toys WHERE user_id = ? AND is_wishlist = 0 AND `year` IS NOT NULL ORDER BY `year`';
+    } else if (field === 'condition') {
+      q = 'SELECT DISTINCT `condition` AS value FROM toys WHERE user_id = ? AND is_wishlist = 0 AND `condition` IS NOT NULL AND TRIM(`condition`) <> "" ORDER BY `condition`';
     } else {
       q = `SELECT DISTINCT ${field} AS value FROM toys WHERE user_id = ? AND is_wishlist = 0 AND ${field} IS NOT NULL AND TRIM(${field}) <> '' ORDER BY ${field}`;
     }
@@ -253,33 +255,82 @@ router.get('/bulk-values', authenticate, async (req, res) => {
   }
 });
 
-// Bulk delete toys from the user's collection matching a selected field/value.
+function normalizeBulkCriteria(rawCriteria) {
+  const criteria = Array.isArray(rawCriteria) ? rawCriteria : [{ field: rawCriteria && rawCriteria.field, value: rawCriteria && rawCriteria.value }];
+  return criteria
+    .map(item => ({
+      field: String(item && item.field).trim(),
+      value: item && Object.prototype.hasOwnProperty.call(item, 'value') ? item.value : ''
+    }))
+    .filter(item => item.field && String(item.value ?? '').trim() !== '');
+}
+
+// Bulk delete toys from the user's collection matching one or more field/value rules.
 router.post('/bulk-delete', authenticate, async (req, res) => {
   const userId = req.user.id;
-  const { field, value } = req.body || {};
-  const allowedFields = new Set(['toyline', 'manufacturer', 'series', 'sub_series', 'year']);
-
-  if (!allowedFields.has(field)) return res.status(400).json({ error: 'Invalid field' });
-  if (value === undefined || value === null || String(value).trim() === '') return res.status(400).json({ error: 'Value is required' });
-
-  let query = '';
-  let params = [userId];
+  const { criteria, field, value, preview } = req.body || {};
+  const allowedFields = new Set(['toyline', 'manufacturer', 'series', 'sub_series', 'theme', 'year', 'condition', 'tag']);
 
   try {
-    if (field === 'year') {
-      const year = Number(value);
-      if (!Number.isInteger(year)) return res.status(400).json({ error: 'Year must be a whole number' });
-      query = 'SELECT id FROM toys WHERE user_id = ? AND is_wishlist = 0 AND `year` = ?';
-      params.push(year);
-    } else {
-      query = `SELECT id FROM toys WHERE user_id = ? AND is_wishlist = 0 AND ${field} = ?`;
-      params.push(String(value).trim());
+    const normalizedCriteria = normalizeBulkCriteria(criteria || (field ? [{ field, value }] : []));
+    if (!normalizedCriteria.length) return res.status(400).json({ error: 'At least one field/value pair is required' });
+
+    const invalidField = normalizedCriteria.find(item => !allowedFields.has(item.field));
+    if (invalidField) return res.status(400).json({ error: `Invalid field: ${invalidField.field}` });
+
+    const whereClauses = [];
+    const params = [userId];
+
+    for (const criterion of normalizedCriteria) {
+      const fieldName = criterion.field;
+      const normalizedValue = String(criterion.value).trim();
+
+      if (fieldName === 'year') {
+        const year = Number(normalizedValue);
+        if (!Number.isInteger(year)) return res.status(400).json({ error: 'Year must be a whole number' });
+        whereClauses.push('t.`year` = ?');
+        params.push(year);
+        continue;
+      }
+
+      if (fieldName === 'tag') {
+        whereClauses.push('t.id IN (SELECT tt.toy_id FROM toy_tags tt JOIN tags tag ON tag.id = tt.tag_id WHERE tag.name = ?)');
+        params.push(normalizedValue);
+        continue;
+      }
+
+      whereClauses.push('t.' + fieldName + ' = ?');
+      params.push(normalizedValue);
     }
 
-    const [rows] = await pool.query(query, params);
-    if (!rows.length) return res.json({ ok: true, deleted: 0 });
+    const matchQuery = `
+      SELECT t.id, t.name, t.manufacturer, t.series, t.sub_series, t.theme, t.toyline, t.year AS year_value, t.condition
+      FROM toys t
+      WHERE t.user_id = ? AND t.is_wishlist = 0 AND ${whereClauses.join(' AND ')}
+      ORDER BY t.name ASC
+    `;
 
-    const toyIds = rows.map(row => row.id);
+    const [matchingRows] = await pool.query(matchQuery, params);
+
+    const matches = matchingRows.map(row => ({
+      id: row.id,
+      name: row.name,
+      manufacturer: row.manufacturer,
+      series: row.series,
+      sub_series: row.sub_series,
+      theme: row.theme,
+      toyline: row.toyline,
+      year: row.year_value,
+      condition: row.condition
+    }));
+
+    if (preview) {
+      return res.json({ ok: true, preview: true, total: matches.length, matches });
+    }
+
+    if (!matches.length) return res.json({ ok: true, deleted: 0, preview: false, matches: [] });
+
+    const toyIds = matches.map(row => row.id);
     const [photos] = await pool.query('SELECT filename FROM toy_photos WHERE toy_id IN (?)', [toyIds]);
     for (const photo of photos) {
       const fp = path.join(uploadsDir, photo.filename);
@@ -289,7 +340,7 @@ router.post('/bulk-delete', authenticate, async (req, res) => {
     await pool.query('DELETE FROM toy_photos WHERE toy_id IN (?)', [toyIds]);
     await pool.query('DELETE FROM toys WHERE id IN (?)', [toyIds]);
 
-    res.json({ ok: true, deleted: toyIds.length });
+    res.json({ ok: true, deleted: toyIds.length, preview: false, matches });
   } catch (err) {
     console.error('Bulk delete error', err);
     res.status(500).json({ error: 'Server error' });
@@ -300,8 +351,12 @@ router.post('/bulk-delete', authenticate, async (req, res) => {
 router.get('/', authenticate, async (req, res) => {
   const userId = req.user.id;
   const wishlist = req.query.wishlist === 'true' ? 1 : 0;
+  const forSale = req.query.for_sale === 'true' ? 1 : 0;
   try {
-    const [toys] = await pool.query('SELECT id, is_wishlist, name, manufacturer, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, included, missing, broken, `condition`, created_at FROM toys WHERE user_id = ? AND is_wishlist = ?', [userId, wishlist]);
+    const query = forSale
+      ? 'SELECT id, is_wishlist, for_sale, name, manufacturer, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, included, missing, broken, `condition`, created_at FROM toys WHERE user_id = ? AND for_sale = ?'
+      : 'SELECT id, is_wishlist, for_sale, name, manufacturer, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, included, missing, broken, `condition`, created_at FROM toys WHERE user_id = ? AND is_wishlist = ?';
+    const [toys] = await pool.query(query, [userId, forSale || wishlist]);
     // fetch photos for each toy
     for (const t of toys) {
       const [photos] = await pool.query('SELECT id, filename, original_name FROM toy_photos WHERE toy_id = ?', [t.id]);
@@ -320,7 +375,7 @@ router.get('/:id', authenticate, async (req, res) => {
   const userId = req.user.id;
   const id = req.params.id;
   try {
-    const [rows] = await pool.query('SELECT id, is_wishlist, name, manufacturer, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, included, missing, broken, `condition`, created_at FROM toys WHERE id = ? AND user_id = ?', [id, userId]);
+    const [rows] = await pool.query('SELECT id, is_wishlist, for_sale, name, manufacturer, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, included, missing, broken, `condition`, created_at FROM toys WHERE id = ? AND user_id = ?', [id, userId]);
     if (!rows.length) return res.status(404).json({ error: 'Toy not found' });
     const toy = rows[0];
     const [photos] = await pool.query('SELECT id, filename, original_name FROM toy_photos WHERE toy_id = ?', [toy.id]);
@@ -337,10 +392,10 @@ router.get('/:id', authenticate, async (req, res) => {
 router.put('/:id', authenticate, async (req, res) => {
   const userId = req.user.id;
   const id = req.params.id;
-  const { name, manufacturer, series, sub_series, theme, toyline, year, included, missing, broken, condition, cost, value, source, notes, tags } = req.body || {};
+  const { name, manufacturer, series, sub_series, theme, toyline, year, included, missing, broken, condition, cost, value, source, notes, tags, for_sale } = req.body || {};
   if (!name) return res.status(400).json({ error: 'Name is required' });
   try {
-    const [result] = await pool.query('UPDATE toys SET name=?, manufacturer=?, series=?, sub_series=?, theme=?, toyline=?, `year`=?, cost=?, `value`=?, source=?, notes=?, included=?, missing=?, broken=?, `condition`=? WHERE id=? AND user_id=?', [name, manufacturer || null, series || null, sub_series || null, theme || null, toyline || null, year ? parseInt(year) : null, cost ? parseFloat(cost) : null, value ? parseFloat(value) : null, source || null, notes || null, included || null, missing || null, broken || null, condition || null, id, userId]);
+    const [result] = await pool.query('UPDATE toys SET name=?, manufacturer=?, series=?, sub_series=?, theme=?, toyline=?, `year`=?, cost=?, `value`=?, source=?, notes=?, included=?, missing=?, broken=?, `condition`=?, for_sale=? WHERE id=? AND user_id=?', [name, manufacturer || null, series || null, sub_series || null, theme || null, toyline || null, year ? parseInt(year) : null, cost ? parseFloat(cost) : null, value ? parseFloat(value) : null, source || null, notes || null, included || null, missing || null, broken || null, condition || null, for_sale === 'true' || for_sale === true || for_sale === 1 || for_sale === '1', id, userId]);
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Toy not found' });
     await setToyTags(id, parseTagIds(tags));
     res.json({ ok: true });

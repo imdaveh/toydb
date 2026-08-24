@@ -14,12 +14,14 @@ export default function Account(){
   const [importError, setImportError] = useState(null)
   const [importResult, setImportResult] = useState(null)
   const [templateBusy, setTemplateBusy] = useState(false)
-  const [bulkField, setBulkField] = useState('toyline')
-  const [bulkValues, setBulkValues] = useState([])
-  const [selectedBulkValue, setSelectedBulkValue] = useState('')
+  const [bulkCriteria, setBulkCriteria] = useState([{ id: 1, field: 'toyline', value: '' }])
+  const [bulkCollectionToys, setBulkCollectionToys] = useState([])
+  const [bulkCollectionLoading, setBulkCollectionLoading] = useState(false)
   const [bulkDeleteBusy, setBulkDeleteBusy] = useState(false)
   const [bulkDeleteError, setBulkDeleteError] = useState(null)
   const [bulkDeleteSuccess, setBulkDeleteSuccess] = useState(null)
+  const [bulkPreview, setBulkPreview] = useState(null)
+  const [bulkPreviewBusy, setBulkPreviewBusy] = useState(false)
 
   async function getToken(){
     const refresh = await fetch(import.meta.env.VITE_API_BASE + '/auth/refresh', { method: 'POST', credentials: 'include' })
@@ -84,44 +86,118 @@ export default function Account(){
   }
 
   useEffect(() => {
-    async function loadBulkValues(){
-      setBulkDeleteError(null)
-      setBulkDeleteSuccess(null)
-      setSelectedBulkValue('')
-      setBulkValues([])
+    async function loadCollectionToys(){
+      setBulkCollectionLoading(true)
       try {
         const token = await getToken()
         if (!token) { navigate('/'); return }
-        const response = await fetch(import.meta.env.VITE_API_BASE + '/toys/bulk-values?field=' + encodeURIComponent(bulkField), {
+        const response = await fetch(import.meta.env.VITE_API_BASE + '/toys?wishlist=false', {
           headers: { Authorization: 'Bearer ' + token }
         })
         const data = await response.json()
         if (!response.ok) {
-          setBulkDeleteError(data.error || 'Unable to load values')
+          setBulkDeleteError(data.error || 'Unable to load collection values')
           return
         }
-        setBulkValues(data.values || [])
-        setSelectedBulkValue(data.values?.[0] || '')
+        setBulkCollectionToys(data.toys || [])
       } catch (error) {
         setBulkDeleteError('Unable to reach the ToyDB server')
       }
+      setBulkCollectionLoading(false)
     }
 
-    loadBulkValues()
-  }, [bulkField])
+    loadCollectionToys()
+  }, [navigate])
 
-  async function bulkDeleteMatchingToys(){
-    if (!bulkField || !selectedBulkValue) {
-      setBulkDeleteError('Choose a value to delete.')
+  function matchesBulkCriterion(toy, criterion){
+    if (!criterion || !criterion.field || !criterion.value) return true
+    const value = String(criterion.value).trim()
+    if (criterion.field === 'year') return String(toy.year ?? '') === value
+    return String(toy[criterion.field] ?? '') === value
+  }
+
+  function getFilteredBulkToys(criteria){
+    if (!criteria.length) return bulkCollectionToys
+    return bulkCollectionToys.filter(toy => criteria.every(criterion => matchesBulkCriterion(toy, criterion)))
+  }
+
+  function getAllowedBulkValues(field, index){
+    if (!bulkCollectionToys.length) return []
+    const priorCriteria = bulkCriteria.slice(0, index).filter(row => row.field && String(row.value ?? '').trim())
+    const filteredToys = getFilteredBulkToys(priorCriteria)
+    const values = [...new Set(filteredToys
+      .map(toy => toy[field])
+      .filter(value => value !== null && value !== undefined && String(value).trim())
+      .map(value => String(value).trim())
+    )].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+    return values
+  }
+
+  function updateBulkRow(id, patch){
+    setBulkCriteria(current => current.map(row => row.id === id ? { ...row, ...patch } : row))
+    setBulkPreview(null)
+  }
+
+  function addBulkRow(){
+    setBulkCriteria(current => [...current, { id: Date.now() + Math.random(), field: 'toyline', value: '' }])
+  }
+
+  function removeBulkRow(id){
+    setBulkCriteria(current => current.length > 1 ? current.filter(row => row.id !== id) : current)
+    setBulkPreview(null)
+  }
+
+  function getBulkCriteriaPayload(){
+    return bulkCriteria
+      .map(row => ({ field: row.field, value: row.value }))
+      .filter(row => row.field && String(row.value ?? '').trim())
+  }
+
+  async function previewBulkDelete(){
+    const criteria = getBulkCriteriaPayload()
+    if (!criteria.length) {
+      setBulkDeleteError('Choose at least one field/value pair to preview.')
       return
     }
 
-    const label = bulkField === 'year' ? String(selectedBulkValue) : selectedBulkValue
-    if (!window.confirm(`Delete all toys in your collection with ${bulkField} = "${label}"? This cannot be undone.`)) return
+    setBulkPreviewBusy(true)
+    setBulkDeleteError(null)
+    setBulkDeleteSuccess(null)
+    try {
+      const token = await getToken()
+      if (!token) { navigate('/'); return }
+      const response = await fetch(import.meta.env.VITE_API_BASE + '/toys/bulk-delete', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ criteria, preview: true })
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        setBulkDeleteError(data.error || 'Unable to preview matching toys')
+        return
+      }
+      setBulkPreview({ total: data.total || 0, matches: data.matches || [] })
+      setBulkDeleteSuccess(data.total ? `Previewing ${data.total} matching toy${data.total === 1 ? '' : 's'}.` : 'No toys match those criteria.')
+    } catch (error) {
+      setBulkDeleteError('Unable to reach the ToyDB server')
+    }
+    setBulkPreviewBusy(false)
+  }
+
+  async function bulkDeleteMatchingToys(){
+    const criteria = getBulkCriteriaPayload()
+    if (!criteria.length) {
+      setBulkDeleteError('Choose at least one field/value pair to delete.')
+      return
+    }
+
+    const summary = criteria.map(row => `${row.field} = "${row.value}"`).join(' AND ')
+    if (!window.confirm(`Delete all toys in your collection matching: ${summary}? This cannot be undone.`)) return
 
     setBulkDeleteBusy(true)
     setBulkDeleteError(null)
     setBulkDeleteSuccess(null)
+    setBulkPreview(null)
 
     try {
       const token = await getToken()
@@ -129,7 +205,7 @@ export default function Account(){
       const response = await fetch(import.meta.env.VITE_API_BASE + '/toys/bulk-delete', {
         method: 'POST',
         headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ field: bulkField, value: selectedBulkValue })
+        body: JSON.stringify({ criteria })
       })
       const data = await response.json()
       if (!response.ok) {
@@ -137,9 +213,9 @@ export default function Account(){
         return
       }
       setBulkDeleteSuccess(`Deleted ${data.deleted} matching toy${data.deleted === 1 ? '' : 's'}.`)
-      setSelectedBulkValue('')
-      setBulkValues([])
-      setBulkField('toyline')
+      setBulkCriteria([{ id: 1, field: 'toyline', value: '' }])
+      setBulkCollectionToys([])
+      setBulkCollectionLoading(false)
     } catch (error) {
       setBulkDeleteError('Unable to reach the ToyDB server')
     }
@@ -183,31 +259,73 @@ export default function Account(){
       <div className="space-y-4 border border-toydb-danger/60 bg-toydb-white p-4 shadow-sm">
         <div>
           <h3 className="font-bold text-toydb-danger">Danger Zone</h3>
-          <p className="mt-1 text-sm text-toydb-slate">Bulk delete toys from your collection by field and value.</p>
+          <p className="mt-1 text-sm text-toydb-slate">Bulk delete toys from your collection using one or more field/value matches.</p>
         </div>
         {bulkDeleteError && <div className="bg-toydb-danger-pale p-3 text-toydb-danger">{bulkDeleteError}</div>}
         {bulkDeleteSuccess && <div className="bg-toydb-teal-pale p-3 text-toydb-teal-dark">{bulkDeleteSuccess}</div>}
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Field">
-            <select value={bulkField} onChange={event => setBulkField(event.target.value)} className="w-full rounded-lg border border-toydb-border p-2">
-              <option value="toyline">Toyline</option>
-              <option value="manufacturer">Manufacturer</option>
-              <option value="series">Series</option>
-              <option value="sub_series">Sub-Series</option>
-              <option value="theme">Theme</option>
-              <option value="year">Year</option>
-            </select>
-          </Field>
-          <Field label="Value">
-            <select value={selectedBulkValue} onChange={event => setSelectedBulkValue(event.target.value)} className="w-full rounded-lg border border-toydb-border p-2" disabled={!bulkValues.length}>
-              {!bulkValues.length && <option value="">No values found</option>}
-              {bulkValues.map(value => <option key={String(value)} value={value}>{String(value)}</option>)}
-            </select>
-          </Field>
+        <div className="space-y-3">
+          {bulkCriteria.map((row, index) => {
+            const values = getAllowedBulkValues(row.field, index)
+            const safeValue = values.includes(row.value) ? row.value : ''
+            const rowCriteria = bulkCriteria.slice(0, index + 1).filter(item => item.field && String(item.value ?? '').trim())
+            const remainingMatches = getFilteredBulkToys(rowCriteria).length
+            return (
+              <div key={row.id} className="grid gap-3 rounded-lg border border-toydb-border bg-toydb-cream p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+                <Field label={`Field ${index + 1}`}>
+                  <select value={row.field} onChange={event => updateBulkRow(row.id, { field: event.target.value, value: '' })} className="w-full rounded-lg border border-toydb-border p-2">
+                    <option value="toyline">Toyline</option>
+                    <option value="manufacturer">Manufacturer</option>
+                    <option value="series">Series</option>
+                    <option value="sub_series">Sub-Series</option>
+                    <option value="theme">Theme</option>
+                    <option value="condition">Condition</option>
+                    <option value="year">Year</option>
+                  </select>
+                </Field>
+                <Field label="Value">
+                  <select value={safeValue} onChange={event => updateBulkRow(row.id, { value: event.target.value })} className="w-full rounded-lg border border-toydb-border p-2" disabled={!values.length || bulkCollectionLoading}>
+                    <option value="">Select a value</option>
+                    {values.map(value => <option key={String(value)} value={value}>{String(value)}</option>)}
+                  </select>
+                </Field>
+                <button type="button" onClick={() => removeBulkRow(row.id)} disabled={bulkCriteria.length === 1} className="rounded-lg border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-medium text-toydb-navy disabled:cursor-not-allowed disabled:opacity-40">
+                  Remove
+                </button>
+                <div className="sm:col-span-3 text-xs text-toydb-slate">
+                  {rowCriteria.length ? `${remainingMatches} record${remainingMatches === 1 ? '' : 's'} remaining in this scope` : 'Choose a value to narrow the remaining records'}
+                </div>
+              </div>
+            )
+          })}
+          <button type="button" onClick={addBulkRow} className="rounded-lg border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-medium text-toydb-navy hover:bg-toydb-cream">
+            + Add another filter
+          </button>
         </div>
-        <button type="button" onClick={bulkDeleteMatchingToys} disabled={bulkDeleteBusy || !selectedBulkValue} className="w-full rounded-lg border border-toydb-danger bg-toydb-danger p-2 font-bold text-toydb-white hover:bg-toydb-danger/90 disabled:cursor-not-allowed disabled:opacity-60">
-          {bulkDeleteBusy ? 'Deleting...' : 'Delete Matching Toys (Dangerous)'}
-        </button>
+
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={previewBulkDelete} disabled={bulkPreviewBusy || !getBulkCriteriaPayload().length} className="rounded-lg border border-toydb-orange bg-toydb-orange p-2 font-medium text-toydb-white hover:bg-toydb-orange-dark disabled:cursor-not-allowed disabled:opacity-60">
+            {bulkPreviewBusy ? 'Previewing...' : 'Preview matches'}
+          </button>
+          <button type="button" onClick={bulkDeleteMatchingToys} disabled={bulkDeleteBusy || !getBulkCriteriaPayload().length} className="rounded-lg border border-toydb-danger bg-toydb-danger p-2 font-bold text-toydb-white hover:bg-toydb-danger/90 disabled:cursor-not-allowed disabled:opacity-60">
+            {bulkDeleteBusy ? 'Deleting...' : 'Delete Matching Toys (Dangerous)'}
+          </button>
+        </div>
+
+        {bulkPreview && (
+          <div className="rounded-lg border border-toydb-border bg-toydb-cream p-3">
+            <div className="mb-2 text-sm font-medium text-toydb-navy">{bulkPreview.total} record{bulkPreview.total === 1 ? '' : 's'} will be deleted</div>
+            <ul className="max-h-52 space-y-1 overflow-auto text-sm text-toydb-slate">
+              {bulkPreview.matches.length === 0 && <li>No matches found.</li>}
+              {bulkPreview.matches.map(toy => (
+                <li key={toy.id} className="border-b border-toydb-border pb-1 last:border-b-0 last:pb-0">
+                  {toy.name || 'Unnamed toy'}
+                  {toy.manufacturer ? ` • ${toy.manufacturer}` : ''}
+                  {toy.year ? ` • ${toy.year}` : ''}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
     </div>
   )
