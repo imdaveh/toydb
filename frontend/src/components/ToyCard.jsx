@@ -125,7 +125,7 @@ export default function ToyCard({ toy, allowDelete = false, onDeleted, returnSta
                   ))}
                 </ul>
               ) : (
-                <div className="mt-1">None</div>
+                <div className="mt-1">No accessories added yet</div>
               )}
             </div>
             {(toy.cost || toy.source) && (
