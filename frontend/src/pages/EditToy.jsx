@@ -20,6 +20,15 @@ export default function EditToy(){
   const suggestions = useToySuggestions()
   const allTags = useTags()
 
+  function normalizeAccessoryList(items) {
+    if (!Array.isArray(items)) return []
+    return items.map(item => ({
+      id: item.id || null,
+      name: String(item.name || '').trim(),
+      has_accessory: Boolean(item.has_accessory)
+    })).filter(item => item.name)
+  }
+
   async function getToken(){
     try {
       const response = await fetch(import.meta.env.VITE_API_BASE + '/auth/refresh', { method: 'POST', credentials: 'include' })
@@ -39,9 +48,9 @@ export default function EditToy(){
       setForm({
         name: data.toy.name || '', manufacturer: data.toy.manufacturer || '', series: data.toy.series || '',
         sub_series: data.toy.sub_series || '', theme: data.toy.theme || '', toyline: data.toy.toyline || '', year: data.toy.year || '',
-        included: data.toy.included || data.toy.accessories || '', missing: data.toy.missing || '', broken: data.toy.broken || '', notes: data.toy.notes || '',
-        condition: data.toy.condition || '', tagIds: (data.toy.tags || []).map(tag => tag.id), cost: data.toy.cost || '',
-        value: data.toy.value || '', source: data.toy.source || '', for_sale: Boolean(data.toy.for_sale)
+        notes: data.toy.notes || '', condition: data.toy.condition || '', tagIds: (data.toy.tags || []).map(tag => tag.id), cost: data.toy.cost || '',
+        value: data.toy.value || '', source: data.toy.source || '', for_sale: Boolean(data.toy.for_sale),
+        accessories: normalizeAccessoryList(data.toy.accessories || [])
       })
     } catch (error) { setError('Server error') }
     setLoading(false)
@@ -64,7 +73,7 @@ export default function EditToy(){
     const token = await getToken()
     if (!token) { setError('Not authenticated'); setBusy(false); return }
     try {
-      const response = await fetch(import.meta.env.VITE_API_BASE + '/toys/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ ...form, tags: form.tagIds, for_sale: Boolean(form.for_sale) }) })
+      const response = await fetch(import.meta.env.VITE_API_BASE + '/toys/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ ...form, tags: form.tagIds, accessories: form.accessories || [], for_sale: Boolean(form.for_sale) }) })
       const data = await response.json()
       if (!response.ok) { setError(data.error || 'Failed'); setBusy(false); return }
       if (photosFiles.length) {
@@ -124,6 +133,27 @@ export default function EditToy(){
 
   function updateField(field, value){ setForm(current => ({ ...current, [field]: value })) }
 
+  function updateAccessory(index, updates) {
+    setForm(current => ({
+      ...current,
+      accessories: (current.accessories || []).map((item, i) => i === index ? { ...item, ...updates } : item)
+    }))
+  }
+
+  function addAccessory() {
+    setForm(current => ({
+      ...current,
+      accessories: [...(current.accessories || []), { id: null, name: '', has_accessory: false }]
+    }))
+  }
+
+  function removeAccessory(index) {
+    setForm(current => ({
+      ...current,
+      accessories: (current.accessories || []).filter((_, i) => i !== index)
+    }))
+  }
+
   if (loading) return <div>Loading...</div>
   if (error) return <div className="bg-toydb-danger-pale text-toydb-danger p-3 rounded-lg">{error}</div>
   if (!toy) return null
@@ -144,10 +174,37 @@ export default function EditToy(){
           <label htmlFor="for-sale-checkbox" className="text-sm font-medium text-toydb-navy">For Sale</label>
         </div>
         <Field label="Tags"><TagPicker allTags={allTags} selectedTagIds={form.tagIds || []} onChange={value => updateField('tagIds', value)} /></Field>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="block text-sm font-medium text-toydb-navy">Accessories</label>
+            <button type="button" onClick={addAccessory} className="text-sm font-medium text-toydb-teal-dark hover:text-toydb-orange-dark">+ Add accessory</button>
+          </div>
+          {(form.accessories || []).length === 0 ? (
+            <div className="rounded border border-dashed border-toydb-border bg-toydb-cream p-3 text-sm text-toydb-slate">No accessories added yet.</div>
+          ) : (
+            <div className="space-y-2">
+              {(form.accessories || []).map((accessory, index) => (
+                <div key={`${accessory.id || 'new'}-${index}`} className="flex items-center gap-2 rounded border border-toydb-border bg-toydb-cream p-2">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(accessory.has_accessory)}
+                    onChange={event => updateAccessory(index, { has_accessory: event.target.checked })}
+                    className="h-4 w-4 rounded border-toydb-border text-toydb-orange focus:ring-toydb-orange"
+                  />
+                  <input
+                    type="text"
+                    value={accessory.name}
+                    onChange={event => updateAccessory(index, { name: event.target.value })}
+                    placeholder="Accessory name"
+                    className="flex-1 rounded border border-toydb-border bg-toydb-white p-2"
+                  />
+                  <button type="button" onClick={() => removeAccessory(index)} className="text-sm font-medium text-toydb-danger hover:text-toydb-orange-dark">Remove</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
         <Field label="Notes"><textarea value={form.notes || ''} onChange={event => updateField('notes', event.target.value)} className="w-full p-2 border rounded" /></Field>
-        <Field label="Included"><textarea value={form.included || ''} onChange={event => updateField('included', event.target.value)} className="w-full p-2 border rounded" /></Field>
-        <Field label="Missing"><textarea value={form.missing || ''} onChange={event => updateField('missing', event.target.value)} className="w-full p-2 border rounded" /></Field>
-        <Field label="Broken"><textarea value={form.broken || ''} onChange={event => updateField('broken', event.target.value)} className="w-full p-2 border rounded" /></Field>
         <div className="flex gap-2"><Field label="Cost" className="w-1/2"><input value={form.cost} onChange={event => updateField('cost', event.target.value)} type="number" min="0" step="0.01" className="w-full p-2 border rounded" /></Field><Field label="Value" className="w-1/2"><input value={form.value} onChange={event => updateField('value', event.target.value)} type="number" min="0" step="0.01" className="w-full p-2 border rounded" /></Field></div>
         <Field label="Source"><AutocompleteInput value={form.source} suggestions={suggestions.source} onChange={value => updateField('source', value)} /></Field>
         <div>

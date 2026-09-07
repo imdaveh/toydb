@@ -39,9 +39,6 @@ CREATE TABLE IF NOT EXISTS toys (
   `value` DECIMAL(10,2),
   source VARCHAR(255),
   notes TEXT,
-  included TEXT,
-  missing TEXT,
-  broken TEXT,
   `condition` VARCHAR(20),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE

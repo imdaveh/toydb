@@ -250,6 +250,10 @@ export default function Account(){
           </div>
         )}
         <button type="button" onClick={downloadTemplate} disabled={templateBusy} className="border border-toydb-border bg-toydb-white p-2 text-toydb-navy rounded-lg">{templateBusy ? 'Downloading...' : 'Download CSV template'}</button>
+        <p className="text-xs text-toydb-slate">
+          The template includes accessories support with <span className="font-semibold">accessories</span> and <span className="font-semibold">owned_accessories</span> columns.
+          Use a pipe, comma, or semicolon-separated list, for example: <span className="font-mono">Instruction Manual|Display Stand</span>.
+        </p>
         <form onSubmit={importCsv} className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <input type="file" accept=".csv,text/csv" onChange={event => setImportFile(event.target.files?.[0] || null)} className="flex-1" />
           <button type="submit" disabled={importBusy} className="bg-toydb-orange p-2 font-medium text-toydb-white rounded-lg hover:bg-toydb-orange-dark">{importBusy ? 'Importing...' : 'Import CSV'}</button>
