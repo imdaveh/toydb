@@ -14,6 +14,9 @@ export default function Admin(){
   const [tagsLoading, setTagsLoading] = useState(true)
   const [newTagName, setNewTagName] = useState('')
   const [tagsBusy, setTagsBusy] = useState(false)
+  const [orphanPhotoCount, setOrphanPhotoCount] = useState(0)
+  const [orphanPhotoError, setOrphanPhotoError] = useState(null)
+  const [orphanPhotoBusy, setOrphanPhotoBusy] = useState(false)
 
   async function getToken(){
     if (accessToken) return accessToken
@@ -64,7 +67,24 @@ export default function Admin(){
     setTagsLoading(false)
   }
 
-  useEffect(() => { loadUsers(); loadTags() }, [])
+  async function loadOrphanPhotoCount(){
+    try {
+      const token = await getToken()
+      if (!token) return navigate('/')
+      const response = await fetch(import.meta.env.VITE_API_BASE + '/admin/photos/orphans', { headers: { Authorization: 'Bearer ' + token } })
+      const data = await response.json()
+      if (!response.ok) {
+        setOrphanPhotoError(data.error || 'Unable to count orphaned files')
+        return
+      }
+      setOrphanPhotoCount(data.orphanCount || 0)
+      setOrphanPhotoError(null)
+    } catch (err) {
+      setOrphanPhotoError('Unable to reach the ToyDB server.')
+    }
+  }
+
+  useEffect(() => { loadUsers(); loadTags(); loadOrphanPhotoCount() }, [])
 
   async function setEnabled(user, enabled){
     setUpdatingId(user.id)
@@ -123,6 +143,30 @@ export default function Admin(){
       setUsersError('Unable to reach the ToyDB server.')
     }
     setUpdatingId(null)
+  }
+
+  async function cleanupOrphanedPhotos(){
+    if (!orphanPhotoCount) return
+    if (!window.confirm(`Delete ${orphanPhotoCount} orphaned photo file${orphanPhotoCount === 1 ? '' : 's'} from the server?`)) return
+    setOrphanPhotoBusy(true)
+    setOrphanPhotoError(null)
+    try {
+      const token = await getToken()
+      if (!token) return navigate('/')
+      const response = await fetch(import.meta.env.VITE_API_BASE + '/admin/photos/orphans/cleanup', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token }
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        setOrphanPhotoError(data.error || 'Unable to clean up orphaned files')
+      } else {
+        setOrphanPhotoCount(0)
+      }
+    } catch (err) {
+      setOrphanPhotoError('Unable to reach the ToyDB server.')
+    }
+    setOrphanPhotoBusy(false)
   }
 
   async function addTag(event){
@@ -233,6 +277,19 @@ export default function Admin(){
           ))}
         </ul> : <div className="border border-dashed border-toydb-border p-4 text-sm text-toydb-slate">No tags yet.</div>
       )}
+    </section>
+
+    <section className="space-y-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h3 className="text-lg font-bold text-toydb-navy">Photo cleanup</h3>
+        <div className="flex items-center gap-3">
+          <span className="rounded-full bg-toydb-cream px-3 py-1 text-sm font-semibold text-toydb-navy">Orphaned files: {orphanPhotoCount}</span>
+          <button type="button" disabled={orphanPhotoBusy || orphanPhotoCount === 0} onClick={cleanupOrphanedPhotos} className="rounded-lg border border-toydb-orange px-3 py-2 text-sm font-medium text-toydb-orange-dark hover:bg-toydb-orange-pale disabled:cursor-not-allowed disabled:opacity-50">
+            {orphanPhotoBusy ? 'Cleaning...' : 'Cleanup orphaned files'}
+          </button>
+        </div>
+      </div>
+      {orphanPhotoError && <div className="bg-toydb-danger-pale p-3 text-toydb-danger">{orphanPhotoError}</div>}
     </section>
   </div>
 }

@@ -1,9 +1,29 @@
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 const router = express.Router();
 const pool = require('../db');
+const uploadsDir = require('../uploadsPath');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 
 router.use(authenticate, requireAdmin);
+
+async function getOrphanedPhotoFiles() {
+  const [rows] = await pool.query('SELECT filename FROM toy_photos');
+  const referencedNames = new Set(rows.map(row => row.filename));
+
+  let entries = [];
+  try {
+    entries = await fs.promises.readdir(uploadsDir, { withFileTypes: true });
+  } catch (err) {
+    if (err.code === 'ENOENT') return [];
+    throw err;
+  }
+
+  return entries
+    .filter(entry => entry.isFile() && !referencedNames.has(entry.name))
+    .map(entry => entry.name);
+}
 
 router.get('/users', async (req, res) => {
   try {
@@ -63,6 +83,38 @@ router.delete('/users/:id', async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error('Delete user error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.get('/photos/orphans', async (req, res) => {
+  try {
+    const orphanFiles = await getOrphanedPhotoFiles();
+    res.json({ orphanCount: orphanFiles.length, files: orphanFiles });
+  } catch (err) {
+    console.error('Count orphaned photos error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.post('/photos/orphans/cleanup', async (req, res) => {
+  try {
+    const orphanFiles = await getOrphanedPhotoFiles();
+    const deleted = [];
+
+    for (const filename of orphanFiles) {
+      const filePath = path.join(uploadsDir, filename);
+      try {
+        await fs.promises.unlink(filePath);
+        deleted.push(filename);
+      } catch (err) {
+        console.error('Delete orphaned photo error:', err);
+      }
+    }
+
+    res.json({ ok: true, deletedCount: deleted.length, orphanCount: orphanFiles.length });
+  } catch (err) {
+    console.error('Cleanup orphaned photos error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

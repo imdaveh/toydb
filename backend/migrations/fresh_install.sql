@@ -59,6 +59,18 @@ CREATE TABLE IF NOT EXISTS tags (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+INSERT INTO tags (name) VALUES
+  ('Box'),
+  ('Carded'),
+  ('Complete'),
+  ('Damaged'),
+  ('Incomplete'),
+  ('Loose'),
+  ('New'),
+  ('Open'),
+  ('Sealed')
+ON DUPLICATE KEY UPDATE name = VALUES(name);
+
 CREATE TABLE IF NOT EXISTS toy_tags (
   toy_id INT UNSIGNED NOT NULL,
   tag_id INT UNSIGNED NOT NULL,
