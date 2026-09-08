@@ -56,7 +56,13 @@ const csvUpload = multer({
   }
 });
 
-const importColumns = ['name', 'manufacturer', 'series', 'sub_series', 'theme', 'toyline', 'year', 'cost', 'value', 'source', 'notes', 'condition', 'tags', 'accessories', 'owned_accessories', 'wishlist'];
+const importColumns = ['name', 'manufacturer', 'series', 'sub_series', 'theme', 'toyline', 'year', 'cost', 'value', 'source', 'notes', 'condition', 'tags', 'accessories', 'owned_accessories', 'wishlist', 'for_sale'];
+
+function escapeCsvCell(value) {
+  const text = String(value ?? '');
+  if (/[",\n\r]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
+  return text;
+}
 
 async function setToyAccessories(toyId, accessories) {
   const cleaned = [];
@@ -203,11 +209,21 @@ router.post('/', authenticate, upload.array('photos', 8), async (req, res) => {
   }
 });
 
-// Download an empty CSV template for bulk import
+// Download a CSV template with sample data for bulk import
 router.get('/import/template', authenticate, (req, res) => {
+  const sampleRows = [
+    ['Millennium Falcon', 'LEGO', 'Star Wars', '', 'Space', 'Millennium Falcon', '2000', '89.99', '129.99', 'Local shop', 'Includes box and instructions', 'Excellent', 'Star Wars;Space', 'Han Solo minifigure;Seat', 'Han Solo minifigure', 'false', 'false'],
+    ['Transformers Optimus Prime', 'Hasbro', 'Transformers', 'Generations', 'Autobots', 'Prime', '2022', '24.99', '42.50', 'Online auction', 'New in box', 'Like New', 'Robot;Action Figure', 'Blaster accessory', 'Blaster accessory', 'false', 'true']
+  ];
+
+  const csv = [
+    importColumns,
+    ...sampleRows
+  ].map(row => row.map(escapeCsvCell).join(',')).join('\n') + '\n';
+
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', 'attachment; filename="toydb-import-template.csv"');
-  res.send(importColumns.join(',') + '\n');
+  res.send(csv);
 });
 
 // Bulk import toys from a CSV file
@@ -254,6 +270,7 @@ router.post('/import', authenticate, csvUpload.single('file'), async (req, res) 
     const value = record.value ? parseFloat(record.value) : null;
     if (record.value && Number.isNaN(value)) { errors.push({ row: rowNumber, error: 'Value must be a number' }); continue; }
     const isWishlist = ['true', '1', 'yes'].includes((record.wishlist || '').toLowerCase());
+    const isForSale = ['true', '1', 'yes'].includes((record.for_sale || '').toLowerCase());
 
     const requestedTagNames = record.tags ? record.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
     const tagIds = [];
@@ -266,7 +283,7 @@ router.post('/import', authenticate, csvUpload.single('file'), async (req, res) 
     try {
       const [result] = await pool.query(
         'INSERT INTO toys (user_id, is_wishlist, for_sale, name, manufacturer, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, `condition`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [userId, isWishlist, false, record.name, record.manufacturer || null, record.series || null, record.sub_series || null, record.theme || null, record.toyline || null, year, cost, value, record.source || null, record.notes || null, record.condition || null]
+        [userId, isWishlist, isForSale, record.name, record.manufacturer || null, record.series || null, record.sub_series || null, record.theme || null, record.toyline || null, year, cost, value, record.source || null, record.notes || null, record.condition || null]
       );
       await setToyTags(result.insertId, tagIds);
       await setToyAccessories(result.insertId, accessoryEntries);
