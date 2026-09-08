@@ -212,8 +212,8 @@ router.post('/', authenticate, upload.array('photos', 8), async (req, res) => {
 // Download a CSV template with sample data for bulk import
 router.get('/import/template', authenticate, (req, res) => {
   const sampleRows = [
-    ['Millennium Falcon', 'LEGO', 'Star Wars', '', 'Space', 'Millennium Falcon', '2000', '89.99', '129.99', 'Local shop', 'Includes box and instructions', 'Excellent', 'Star Wars;Space', 'Han Solo minifigure;Seat', 'Han Solo minifigure', 'false', 'false'],
-    ['Transformers Optimus Prime', 'Hasbro', 'Transformers', 'Generations', 'Autobots', 'Prime', '2022', '24.99', '42.50', 'Online auction', 'New in box', 'Like New', 'Robot;Action Figure', 'Blaster accessory', 'Blaster accessory', 'false', 'true']
+    ['Millennium Falcon', 'LEGO', 'Star Wars', '', 'Space', 'Millennium Falcon', '2000', '89.99', '129.99', 'Local shop', 'Includes box and instructions', 'Excellent', 'Star Wars,Space', 'Han Solo minifigure|Seat', 'Han Solo minifigure', 'false', 'false'],
+    ['Transformers Optimus Prime', 'Hasbro', 'Transformers', 'Generations', 'Autobots', 'Prime', '2022', '24.99', '42.50', 'Online auction', 'New in box', 'Like New', 'Robot,Action Figure', 'Blaster accessory', 'Blaster accessory', 'false', 'true']
   ];
 
   const csv = [
@@ -272,13 +272,23 @@ router.post('/import', authenticate, csvUpload.single('file'), async (req, res) 
     const isWishlist = ['true', '1', 'yes'].includes((record.wishlist || '').toLowerCase());
     const isForSale = ['true', '1', 'yes'].includes((record.for_sale || '').toLowerCase());
 
-    const requestedTagNames = record.tags ? record.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
-    const tagIds = [];
-    const unknownTagNames = [];
-    for (const tagName of requestedTagNames) {
-      const tagId = tagIdsByName.get(tagName.toLowerCase());
-      if (tagId) tagIds.push(tagId); else unknownTagNames.push(tagName);
+    const requestedTagNames = record.tags ? String(record.tags).split(/[|,;\n]/).map(t => t.trim()).filter(Boolean) : [];
+    const uniqueRequestedTagNames = [...new Map(requestedTagNames.map(tagName => [tagName.toLowerCase(), tagName])).values()];
+    const missingTagNames = uniqueRequestedTagNames.filter(tagName => !tagIdsByName.has(tagName.toLowerCase()));
+
+    if (missingTagNames.length) {
+      const cleanMissingTagNames = [...new Map(missingTagNames.map(tagName => [tagName.toLowerCase(), tagName])).values()];
+      await pool.query('INSERT IGNORE INTO tags (name) VALUES ?', [cleanMissingTagNames.map(tagName => [tagName])]);
+      const [newTagRows] = await pool.query(
+        `SELECT id, name FROM tags WHERE LOWER(name) IN (${cleanMissingTagNames.map(() => '?').join(',')})`,
+        cleanMissingTagNames.map(tagName => tagName.toLowerCase())
+      );
+      for (const tagRow of newTagRows) {
+        tagIdsByName.set(tagRow.name.toLowerCase(), tagRow.id);
+      }
     }
+
+    const tagIds = uniqueRequestedTagNames.map(tagName => tagIdsByName.get(tagName.toLowerCase())).filter(Boolean);
 
     try {
       const [result] = await pool.query(
@@ -287,7 +297,6 @@ router.post('/import', authenticate, csvUpload.single('file'), async (req, res) 
       );
       await setToyTags(result.insertId, tagIds);
       await setToyAccessories(result.insertId, accessoryEntries);
-      if (unknownTagNames.length) errors.push({ row: rowNumber, error: `Imported, but ignored unknown tags: ${unknownTagNames.join(', ')}` });
       imported++;
     } catch (err) {
       console.error('CSV import row error', err);
