@@ -118,15 +118,22 @@ export default function ToyCard({ toy, allowDelete = false, onDeleted, returnSta
             <div className="mt-2 text-xs text-toydb-slate"><span className="font-semibold text-toydb-navy">Notes:</span> {toy.notes || 'None'}</div>
             <div className="mt-2 text-xs text-toydb-slate">
               <div className="font-semibold text-toydb-navy">Needed Accessories:</div>
-              {Array.isArray(toy.accessories) && toy.accessories.some(item => !item.has_accessory) ? (
-                <ul className="mt-1 list-disc pl-5">
-                  {toy.accessories.filter(item => !item.has_accessory).map(item => (
-                    <li key={item.id || item.name}>{item.name}</li>
-                  ))}
-                </ul>
-              ) : (
-                <div className="mt-1">No accessories added yet</div>
-              )}
+              {(() => {
+                const accessories = Array.isArray(toy.accessories) ? toy.accessories : []
+                const neededAccessories = accessories.filter(item => !item.has_accessory)
+
+                if (neededAccessories.length > 0) {
+                  return (
+                    <ul className="mt-1 list-disc pl-5">
+                      {neededAccessories.map(item => (
+                        <li key={item.id || item.name}>{item.name}</li>
+                      ))}
+                    </ul>
+                  )
+                }
+
+                return <div className="mt-1">{accessories.length > 0 ? 'None' : 'No accessories added yet'}</div>
+              })()}
             </div>
             {(toy.cost || toy.source) && (
               <div className="text-sm text-toydb-navy mt-1">{toy.cost ? `Cost: $${parseFloat(toy.cost).toFixed(2)}` : ''} {toy.source ? `• Source: ${toy.source}` : ''}</div>
