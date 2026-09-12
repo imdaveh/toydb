@@ -18,6 +18,34 @@ const upload = multer({
   }
 });
 
+async function createThumbnailFromBuffer(buffer, targetPath) {
+  await sharp(buffer, { limitInputPixels: 100000000 })
+    .rotate()
+    .resize(240, 240, { fit: 'cover', withoutEnlargement: true })
+    .webp({ quality: 80 })
+    .toFile(targetPath);
+}
+
+async function generateThumbnailIfMissing(filename) {
+  const sourcePath = path.join(uploadsDir, filename);
+  const thumbFilename = filename.replace(/(\.[^.]+)$/, '-thumb.webp');
+  const thumbPath = path.join(uploadsDir, thumbFilename);
+
+  try {
+    await fs.promises.access(thumbPath);
+    return `/uploads/${thumbFilename}`;
+  } catch (error) {}
+
+  try {
+    const source = await fs.promises.readFile(sourcePath);
+    await createThumbnailFromBuffer(source, thumbPath);
+    return `/uploads/${thumbFilename}`;
+  } catch (error) {
+    console.warn('Failed to generate thumbnail for', filename, error.message);
+    return `/uploads/${filename}`;
+  }
+}
+
 async function preparePhotos(files) {
   return Promise.all(files.map(async file => {
     try {
@@ -40,7 +68,12 @@ async function preparePhotos(files) {
 async function savePhotos(toyId, photos) {
   for (const photo of photos) {
     const filename = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}.webp`;
-    await fs.promises.writeFile(path.join(uploadsDir, filename), photo.buffer);
+    const sourcePath = path.join(uploadsDir, filename);
+    const thumbFilename = filename.replace(/(\.[^.]+)$/, '-thumb.webp');
+    const thumbPath = path.join(uploadsDir, thumbFilename);
+
+    await fs.promises.writeFile(sourcePath, photo.buffer);
+    await createThumbnailFromBuffer(photo.buffer, thumbPath);
     await pool.query('INSERT INTO toy_photos (toy_id, filename, original_name) VALUES (?, ?, ?)', [toyId, filename, photo.originalName]);
   }
 }
@@ -437,7 +470,12 @@ router.get('/', authenticate, async (req, res) => {
     const [toys] = await pool.query(query, [userId, forSale || wishlist]);
     for (const t of toys) {
       const [photos] = await pool.query('SELECT id, filename, original_name FROM toy_photos WHERE toy_id = ?', [t.id]);
-      t.photos = photos.map(p => ({ id: p.id, url: `/uploads/${p.filename}`, name: p.original_name }));
+      t.photos = await Promise.all(photos.map(async p => ({
+        id: p.id,
+        url: `/uploads/${p.filename}`,
+        thumbnail_url: await generateThumbnailIfMissing(p.filename),
+        name: p.original_name
+      })));
     }
     await attachTags(toys);
     await attachAccessories(toys);
@@ -457,7 +495,12 @@ router.get('/:id', authenticate, async (req, res) => {
     if (!rows.length) return res.status(404).json({ error: 'Toy not found' });
     const toy = rows[0];
     const [photos] = await pool.query('SELECT id, filename, original_name FROM toy_photos WHERE toy_id = ?', [toy.id]);
-    toy.photos = photos.map(p => ({ id: p.id, url: `/uploads/${p.filename}`, name: p.original_name }));
+    toy.photos = await Promise.all(photos.map(async p => ({
+      id: p.id,
+      url: `/uploads/${p.filename}`,
+      thumbnail_url: await generateThumbnailIfMissing(p.filename),
+      name: p.original_name
+    })));
     await attachTags([toy]);
     await attachAccessories([toy]);
     res.json({ toy });

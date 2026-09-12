@@ -5,6 +5,7 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const authRoutes = require('./routes/auth');
 const toysRoutes = require('./routes/toys');
+const galleryRoutes = require('./routes/gallery');
 const adminRoutes = require('./routes/admin');
 const tagsRoutes = require('./routes/tags');
 const pool = require('./db');
@@ -44,6 +45,7 @@ app.use('/uploads', express.static(require('./uploadsPath')));
 
 app.use('/auth', authRoutes);
 app.use('/toys', toysRoutes);
+app.use('/gallery', galleryRoutes);
 app.use('/admin', adminRoutes);
 app.use('/tags', tagsRoutes);
 

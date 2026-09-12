@@ -39,7 +39,11 @@ export default function EditToy(){
   async function load(){
     setLoading(true); setError(null)
     const token = await getToken()
-    if (!token) { navigate('/'); return }
+    if (!token) {
+      setError('Please log in to view this toy.')
+      setLoading(false)
+      return
+    }
     try {
       const response = await fetch(import.meta.env.VITE_API_BASE + '/toys/' + id, { headers: { Authorization: 'Bearer ' + token } })
       const data = await response.json()

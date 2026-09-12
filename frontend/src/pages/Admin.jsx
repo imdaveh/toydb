@@ -32,7 +32,11 @@ export default function Admin(){
     setUsersError(null)
     try {
       const token = await getToken()
-      if (!token) return navigate('/')
+      if (!token) {
+        setUsersError('Please log in to view admin users.')
+        setUsersLoading(false)
+        return
+      }
       const response = await fetch(import.meta.env.VITE_API_BASE + '/admin/users', { headers: { Authorization: 'Bearer ' + token } })
       const data = await response.json()
       if (!response.ok) {
@@ -52,7 +56,11 @@ export default function Admin(){
     setTagsError(null)
     try {
       const token = await getToken()
-      if (!token) return navigate('/')
+      if (!token) {
+        setTagsError('Please log in to view tags.')
+        setTagsLoading(false)
+        return
+      }
       const response = await fetch(import.meta.env.VITE_API_BASE + '/tags', { headers: { Authorization: 'Bearer ' + token } })
       const data = await response.json()
       if (!response.ok) {
@@ -70,7 +78,10 @@ export default function Admin(){
   async function loadOrphanPhotoCount(){
     try {
       const token = await getToken()
-      if (!token) return navigate('/')
+      if (!token) {
+        setOrphanPhotoError('Please log in to view orphaned photos.')
+        return
+      }
       const response = await fetch(import.meta.env.VITE_API_BASE + '/admin/photos/orphans', { headers: { Authorization: 'Bearer ' + token } })
       const data = await response.json()
       if (!response.ok) {

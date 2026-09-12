@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import ToyCard from '../components/ToyCard'
 
@@ -17,6 +17,8 @@ export default function Dashboard({ wishlist = false, forSale = false }){
   const [searchQuery, setSearchQuery] = useState('')
   const [appliedFilters, setAppliedFilters] = useState([])
   const [loading, setLoading] = useState(true)
+  const [visibleCount, setVisibleCount] = useState(24)
+  const loadMoreRef = useRef(null)
   const loc = useLocation()
   const navigate = useNavigate()
   const accessToken = loc.state?.accessToken || null
@@ -44,7 +46,11 @@ export default function Dashboard({ wishlist = false, forSale = false }){
       const data = await r.json()
       if (data.accessToken) token = data.accessToken
     }
-    if (!token) return navigate('/')
+    if (!token) {
+      setError('Please log in to view your collection.')
+      setLoading(false)
+      return
+    }
     try{
       const listQuery = forSale ? '?for_sale=true' : wishlist ? '?wishlist=true' : ''
       const [uRes, tRes] = await Promise.all([
@@ -149,6 +155,24 @@ export default function Dashboard({ wishlist = false, forSale = false }){
     }
     return result.filter(toy => String(toy[activeFilter.field] || '') === activeFilter.value)
   }, baseScopeToys).filter(matchesSearch)
+  const visibleToys = filteredToys.slice(0, visibleCount)
+  const hasMoreToys = visibleCount < filteredToys.length
+
+  useEffect(() => {
+    setVisibleCount(24)
+  }, [searchQuery, grouping, selectedGroup, appliedFilters, wishlist, forSale])
+
+  useEffect(() => {
+    if (!loadMoreRef.current || !hasMoreToys) return
+    const node = loadMoreRef.current
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting) {
+        setVisibleCount(current => Math.min(current + 12, filteredToys.length))
+      }
+    }, { rootMargin: '250px' })
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [hasMoreToys, filteredToys.length])
 
   const dashboardViewState = {
     grouping,
@@ -298,8 +322,9 @@ export default function Dashboard({ wishlist = false, forSale = false }){
             <div className="flex gap-2"><button type="button" onClick={applyFilter} disabled={!filterValue} className="bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white hover:bg-toydb-teal-dark disabled:cursor-not-allowed disabled:opacity-60">Add filter</button>{appliedFilters.length > 0 && <button type="button" onClick={clearAppliedFilters} className="border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-medium text-toydb-navy hover:bg-toydb-cream">Clear all</button>}</div>
           </div>}
           <div className="grid grid-cols-1 gap-4">
-            {filteredToys.map(toy => <ToyCard key={toy.id} toy={toy} allowDelete onDeleted={onDeleted} returnState={dashboardViewState} deleteLabel={forSale ? 'Sold' : 'Delete'} />)}
+            {visibleToys.map(toy => <ToyCard key={toy.id} toy={toy} allowDelete onDeleted={onDeleted} returnState={dashboardViewState} deleteLabel={forSale ? 'Sold' : 'Delete'} />)}
           </div>
+          {hasMoreToys && <div ref={loadMoreRef} className="py-2 text-center text-xs font-medium uppercase tracking-wide text-toydb-slate">Loading more toys…</div>}
           {filteredToys.length === 0 && <div className="border border-dashed border-toydb-border p-4 text-sm text-toydb-slate">No toys match this search or filter in the current scope.</div>}
         </div>
       )}
@@ -358,8 +383,9 @@ export default function Dashboard({ wishlist = false, forSale = false }){
             <div className="flex gap-2"><button type="button" onClick={applyFilter} disabled={!filterValue} className="bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white hover:bg-toydb-teal-dark disabled:cursor-not-allowed disabled:opacity-60">Add filter</button>{appliedFilters.length > 0 && <button type="button" onClick={clearAppliedFilters} className="border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-medium text-toydb-navy hover:bg-toydb-cream">Clear all</button>}</div>
           </div>}
           <div className="grid grid-cols-1 gap-4">
-            {filteredToys.map(t => <ToyCard key={t.id} toy={t} onUpdated={onUpdated} onDeleted={onDeleted} returnState={dashboardViewState} deleteLabel={forSale ? 'Sold' : 'Delete'} />)}
+            {visibleToys.map(t => <ToyCard key={t.id} toy={t} onUpdated={onUpdated} onDeleted={onDeleted} returnState={dashboardViewState} deleteLabel={forSale ? 'Sold' : 'Delete'} />)}
           </div>
+          {hasMoreToys && <div ref={loadMoreRef} className="py-2 text-center text-xs font-medium uppercase tracking-wide text-toydb-slate">Loading more toys…</div>}
           {filteredToys.length === 0 && <div className="border border-dashed border-toydb-border p-4 text-sm text-toydb-slate">No toys match this search or filter in the current scope.</div>}
         </div>
       )}

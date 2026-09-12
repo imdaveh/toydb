@@ -10,6 +10,7 @@ import AddToy from './pages/AddToy'
 import Wishlist from './pages/Wishlist'
 import ForSale from './pages/ForSale'
 import Lists from './pages/Lists'
+import Gallery from './pages/Gallery'
 import EditToy from './pages/EditToy'
 import Admin from './pages/Admin'
 import Account from './pages/Account'
@@ -28,6 +29,7 @@ createRoot(document.getElementById('root')).render(
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="add" element={<AddToy />} />
           <Route path="lists" element={<Lists />} />
+          <Route path="gallery" element={<Gallery />} />
           <Route path="wishlist" element={<Wishlist />} />
           <Route path="for-sale" element={<ForSale />} />
           <Route path="wishlist/add" element={<AddToy wishlist />} />

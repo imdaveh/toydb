@@ -11,7 +11,8 @@ export default function ToyCard({ toy, allowDelete = false, onDeleted, returnSta
   const [deleting, setDeleting] = useState(false)
   const photos = toy.photos || []
   const photo = photos[selectedPhotoIndex]
-  const photoUrl = photo ? import.meta.env.VITE_API_BASE + photo.url : null
+  const fullPhotoUrl = photo ? import.meta.env.VITE_API_BASE + photo.url : null
+  const thumbnailPhotoUrl = photo ? import.meta.env.VITE_API_BASE + (photo.thumbnail_url || photo.url) : null
   const conditionTone = {
     Mint: 'bg-toydb-success-pale text-toydb-success',
     Excellent: 'bg-toydb-teal-pale text-toydb-teal-dark',
@@ -79,7 +80,7 @@ export default function ToyCard({ toy, allowDelete = false, onDeleted, returnSta
               className="w-full h-full cursor-zoom-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-toydb-teal"
               aria-label={`Enlarge photo of ${toy.name}`}
             >
-              <img src={photoUrl} alt={photo.name} className="object-contain w-full h-full" />
+              <img src={thumbnailPhotoUrl} alt={photo.name} className="object-contain w-full h-full" loading="lazy" decoding="async" />
             </button>
           ) : <div className="text-xs text-toydb-slate">No photo</div>}
         </div>
@@ -181,7 +182,7 @@ export default function ToyCard({ toy, allowDelete = false, onDeleted, returnSta
                   &larr;
                 </button>
               )}
-              <img src={photoUrl} alt={photo.name} className="h-auto min-w-0 max-h-[75vh] max-w-full flex-1 object-contain" />
+              <img src={fullPhotoUrl} alt={photo.name} className="h-auto min-w-0 max-h-[75vh] max-w-full flex-1 object-contain" />
               {photos.length > 1 && (
                 <button
                   type="button"
@@ -215,7 +216,7 @@ export default function ToyCard({ toy, allowDelete = false, onDeleted, returnSta
                       className={`overflow-hidden rounded-lg border-2 bg-toydb-white shadow-sm transition ${isActive ? 'border-toydb-orange scale-[1.02]' : 'border-transparent hover:border-toydb-teal-light'}`}
                       aria-label={`View photo ${index + 1} of ${photos.length}`}
                     >
-                      <img src={thumbUrl} alt={`${toy.name} photo ${index + 1}`} className="h-12 w-12 object-cover" />
+                      <img src={thumbUrl} alt={`${toy.name} photo ${index + 1}`} className="h-12 w-12 object-cover" loading="lazy" decoding="async" />
                     </button>
                   )
                 })}

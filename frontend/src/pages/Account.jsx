@@ -90,7 +90,11 @@ export default function Account(){
       setBulkCollectionLoading(true)
       try {
         const token = await getToken()
-        if (!token) { navigate('/'); return }
+        if (!token) {
+          setBulkDeleteError('Please log in to manage your collection.')
+          setBulkCollectionLoading(false)
+          return
+        }
         const response = await fetch(import.meta.env.VITE_API_BASE + '/toys?wishlist=false', {
           headers: { Authorization: 'Bearer ' + token }
         })
