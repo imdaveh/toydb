@@ -78,6 +78,30 @@ async function savePhotos(toyId, photos) {
   }
 }
 
+function sortToyCollection(rows) {
+  return [...rows].sort((left, right) => {
+    const yearLeft = left?.year === null || left?.year === undefined || left?.year === '' ? Number.MAX_SAFE_INTEGER : Number(left.year);
+    const yearRight = right?.year === null || right?.year === undefined || right?.year === '' ? Number.MAX_SAFE_INTEGER : Number(right.year);
+    if (yearLeft !== yearRight) return yearLeft - yearRight;
+
+    const seriesLeft = String(left?.series ?? '').trim().toLowerCase();
+    const seriesRight = String(right?.series ?? '').trim().toLowerCase();
+    if (seriesLeft !== seriesRight) return seriesLeft.localeCompare(seriesRight);
+
+    const subSeriesLeft = String(left?.sub_series ?? '').trim().toLowerCase();
+    const subSeriesRight = String(right?.sub_series ?? '').trim().toLowerCase();
+    if (subSeriesLeft !== subSeriesRight) return subSeriesLeft.localeCompare(subSeriesRight);
+
+    const themeLeft = String(left?.theme ?? '').trim().toLowerCase();
+    const themeRight = String(right?.theme ?? '').trim().toLowerCase();
+    if (themeLeft !== themeRight) return themeLeft.localeCompare(themeRight);
+
+    const nameLeft = String(left?.name ?? '').trim().toLowerCase();
+    const nameRight = String(right?.name ?? '').trim().toLowerCase();
+    return nameLeft.localeCompare(nameRight);
+  });
+}
+
 const csvUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 2 * 1024 * 1024 }, // 2 MB per CSV
@@ -465,10 +489,11 @@ router.get('/', authenticate, async (req, res) => {
   const forSale = req.query.for_sale === 'true' ? 1 : 0;
   try {
     const query = forSale
-      ? 'SELECT id, is_wishlist, for_sale, name, manufacturer, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, `condition`, created_at FROM toys WHERE user_id = ? AND for_sale = ?'
-      : 'SELECT id, is_wishlist, for_sale, name, manufacturer, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, `condition`, created_at FROM toys WHERE user_id = ? AND is_wishlist = ?';
+      ? 'SELECT id, is_wishlist, for_sale, name, manufacturer, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, `condition`, created_at FROM toys WHERE user_id = ? AND for_sale = ? ORDER BY (year IS NULL), year, (series IS NULL), series, (sub_series IS NULL), sub_series, (theme IS NULL), theme, name'
+      : 'SELECT id, is_wishlist, for_sale, name, manufacturer, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, `condition`, created_at FROM toys WHERE user_id = ? AND is_wishlist = ? ORDER BY (year IS NULL), year, (series IS NULL), series, (sub_series IS NULL), sub_series, (theme IS NULL), theme, name';
     const [toys] = await pool.query(query, [userId, forSale || wishlist]);
-    for (const t of toys) {
+    const orderedToys = sortToyCollection(toys);
+    for (const t of orderedToys) {
       const [photos] = await pool.query('SELECT id, filename, original_name FROM toy_photos WHERE toy_id = ?', [t.id]);
       t.photos = await Promise.all(photos.map(async p => ({
         id: p.id,
@@ -477,9 +502,9 @@ router.get('/', authenticate, async (req, res) => {
         name: p.original_name
       })));
     }
-    await attachTags(toys);
-    await attachAccessories(toys);
-    res.json({ toys });
+    await attachTags(orderedToys);
+    await attachAccessories(orderedToys);
+    res.json({ toys: orderedToys });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });

@@ -8,9 +8,22 @@ const { authenticate, requireAdmin } = require('../middleware/auth');
 
 router.use(authenticate, requireAdmin);
 
+function getReferencedPhotoNames(rows) {
+  const referencedNames = new Set();
+
+  for (const row of rows) {
+    if (!row.filename) continue;
+    referencedNames.add(row.filename);
+    const thumbFilename = row.filename.replace(/(\.[^.]+)$/, '-thumb.webp');
+    if (thumbFilename !== row.filename) referencedNames.add(thumbFilename);
+  }
+
+  return referencedNames;
+}
+
 async function getOrphanedPhotoFiles() {
   const [rows] = await pool.query('SELECT filename FROM toy_photos');
-  const referencedNames = new Set(rows.map(row => row.filename));
+  const referencedNames = getReferencedPhotoNames(rows);
 
   let entries = [];
   try {

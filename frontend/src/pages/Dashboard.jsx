@@ -69,7 +69,7 @@ export default function Dashboard({ wishlist = false, forSale = false }){
         if (wishlist) return isWishlistToy(toy)
         return !isWishlistToy(toy)
       }
-      setToys((tData.toys || []).filter(visibleToy))
+      setToys((tData.toys || []).filter(visibleToy).sort(sortToyRecords))
       setLoading(false)
     } catch (err){ setError('Server error'); setLoading(false) }
   }
@@ -122,6 +122,26 @@ export default function Dashboard({ wishlist = false, forSale = false }){
   const filterValues = filterField === 'tag'
     ? [...new Set(filterableToys.flatMap(toy => (toy.tags || []).map(tag => tag.name)))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
     : [...new Set(filterableToys.map(toy => toy[filterField]).filter(value => value !== null && value !== undefined && String(value).trim()).map(String))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+
+  function sortToyRecords(left, right){
+    const yearLeft = left?.year === null || left?.year === undefined || left?.year === '' ? Number.MAX_SAFE_INTEGER : Number(left.year)
+    const yearRight = right?.year === null || right?.year === undefined || right?.year === '' ? Number.MAX_SAFE_INTEGER : Number(right.year)
+    if (yearLeft !== yearRight) return yearLeft - yearRight
+
+    const seriesLeft = String(left?.series ?? '').trim().toLowerCase()
+    const seriesRight = String(right?.series ?? '').trim().toLowerCase()
+    if (seriesLeft !== seriesRight) return seriesLeft.localeCompare(seriesRight)
+
+    const subSeriesLeft = String(left?.sub_series ?? '').trim().toLowerCase()
+    const subSeriesRight = String(right?.sub_series ?? '').trim().toLowerCase()
+    if (subSeriesLeft !== subSeriesRight) return subSeriesLeft.localeCompare(subSeriesRight)
+
+    const themeLeft = String(left?.theme ?? '').trim().toLowerCase()
+    const themeRight = String(right?.theme ?? '').trim().toLowerCase()
+    if (themeLeft !== themeRight) return themeLeft.localeCompare(themeRight)
+
+    return String(left?.name ?? '').trim().localeCompare(String(right?.name ?? '').trim(), undefined, { numeric: true, sensitivity: 'base' })
+  }
 
   function matchesSearch(toy){
     const query = searchQuery.trim().toLowerCase()
