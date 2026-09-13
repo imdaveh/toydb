@@ -433,7 +433,7 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
       <footer className="border-t border-toydb-border pt-4">
         <div className="mb-3 flex flex-wrap items-center justify-center gap-2 rounded-lg border border-toydb-border bg-toydb-white px-2 py-2 text-[10px] font-medium uppercase tracking-wide text-toydb-slate shadow-sm sm:gap-3 sm:text-xs">
           <span className="inline-flex items-center gap-1 rounded-full bg-toydb-teal-pale px-2 py-1 text-toydb-teal-dark">
-            <span className="font-bold text-toydb-navy">{toys.length}</span>
+            <span className="font-bold text-toydb-navy">{filteredToys.length}</span>
             <span>Toys</span>
           </span>
           <span className="inline-flex items-center gap-1 rounded-full bg-toydb-orange-pale px-2 py-1 text-toydb-orange-dark">
