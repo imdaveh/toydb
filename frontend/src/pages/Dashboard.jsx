@@ -177,6 +177,22 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
     }
     return result.filter(toy => String(toy[activeFilter.field] || '') === activeFilter.value)
   }, baseScopeToys).filter(matchesSearch)
+
+  const parseCurrencyValue = value => {
+    const parsed = Number.parseFloat(value)
+    return Number.isFinite(parsed) ? parsed : 0
+  }
+
+  const filteredCostTotal = filteredToys.reduce((total, toy) => total + parseCurrencyValue(toy.cost), 0)
+  const filteredValueTotal = filteredToys.reduce((total, toy) => total + parseCurrencyValue(toy.value), 0)
+  const filteredNetTotal = filteredValueTotal - filteredCostTotal
+  const formatCurrency = value => new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(Number.isFinite(value) ? value : 0)
+
   const visibleToys = filteredToys.slice(0, visibleCount)
   const hasMoreToys = visibleCount < filteredToys.length
 
@@ -286,32 +302,34 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
       </section>
 
       {!wishlist && !forSale && !hidden && <section className="grid grid-cols-3 gap-2 sm:gap-3" aria-label="Collection summary">
-        <div className="border-l-4 border-toydb-teal bg-toydb-white px-4 py-3 text-center shadow-sm">
-          <div className="text-xl font-bold text-toydb-navy sm:text-2xl">{toys.length}</div>
-          <div className="text-[10px] font-medium uppercase tracking-wide text-toydb-slate sm:text-xs">Toys</div>
-        </div>
-        <div className="border-l-4 border-toydb-orange bg-toydb-white px-4 py-3 text-center shadow-sm">
+        <button
+          type="button"
+          onClick={() => changeGrouping('toyline')}
+          className={`border-l-4 bg-toydb-white px-4 py-3 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-toydb-teal ${grouping === 'toyline' ? 'border-toydb-teal ring-2 ring-toydb-teal/30' : 'border-toydb-teal'}`}
+          aria-pressed={grouping === 'toyline'}
+        >
+          <div className="text-xl font-bold text-toydb-navy sm:text-2xl">{new Set(toys.map(toy => toy.toyline).filter(value => value !== null && value !== undefined && String(value).trim())).size}</div>
+          <div className="text-[10px] font-medium uppercase tracking-wide text-toydb-slate sm:text-xs">Toylines</div>
+        </button>
+        <button
+          type="button"
+          onClick={() => changeGrouping('manufacturer')}
+          className={`border-l-4 bg-toydb-white px-4 py-3 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-toydb-orange ${grouping === 'manufacturer' ? 'border-toydb-orange ring-2 ring-toydb-orange/30' : 'border-toydb-orange'}`}
+          aria-pressed={grouping === 'manufacturer'}
+        >
           <div className="text-xl font-bold text-toydb-navy sm:text-2xl">{new Set(toys.map(toy => toy.manufacturer).filter(value => value !== null && value !== undefined && String(value).trim())).size}</div>
           <div className="text-[10px] font-medium uppercase tracking-wide text-toydb-slate sm:text-xs">Manufacturers</div>
-        </div>
-        <div className="border-l-4 border-toydb-gold bg-toydb-white px-4 py-3 text-center shadow-sm">
+        </button>
+        <button
+          type="button"
+          onClick={() => changeGrouping('year')}
+          className={`border-l-4 bg-toydb-white px-4 py-3 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-toydb-gold ${grouping === 'year' ? 'border-toydb-gold ring-2 ring-toydb-gold/30' : 'border-toydb-gold'}`}
+          aria-pressed={grouping === 'year'}
+        >
           <div className="text-xl font-bold text-toydb-navy sm:text-2xl">{new Set(toys.map(toy => toy.year).filter(value => value !== null && value !== undefined && String(value).trim())).size}</div>
           <div className="text-[10px] font-medium uppercase tracking-wide text-toydb-slate sm:text-xs">Years</div>
-        </div>
+        </button>
       </section>}
-
-      {!wishlist && !forSale && !hidden && <nav className="flex gap-5 border-b-2 border-toydb-border text-sm" aria-label="Collection views">
-        {Object.entries(groupings).map(([key, view]) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => changeGrouping(key)}
-            className={`pb-2 ${grouping === key ? 'border-b-2 border-toydb-teal font-medium text-toydb-teal-dark' : 'text-toydb-slate hover:text-toydb-teal-dark'}`}
-          >
-            {view.label}
-          </button>
-        ))}
-      </nav>}
       {loading && <div>Loading toys...</div>}
       {!loading && toys.length === 0 && <div className="border border-dashed border-toydb-teal bg-toydb-teal-pale p-6 text-sm text-toydb-teal-dark">{hidden ? 'No hidden toys yet. Use "+ Add Hidden Toy" above to add your first item.' : forSale ? 'No toys are currently marked for sale.' : wishlist ? 'No wishlist toys yet. Use "+ Add Wishlist Toy" above to add your first item.' : 'No toys yet. Use "+ Add Toy" above to add your first item.'}</div>}
       {!loading && (wishlist || forSale || hidden) && toys.length > 0 && (
@@ -412,9 +430,29 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
           {filteredToys.length === 0 && <div className="border border-dashed border-toydb-border p-4 text-sm text-toydb-slate">No toys match this search or filter in the current scope.</div>}
         </div>
       )}
-      <footer className="border-t border-toydb-border pt-5 text-center">
-        <div className="text-sm font-bold">Welcome, {user.email}</div>
-        <div className="text-xs text-toydb-slate">Member since: {new Date(user.createdAt).toLocaleString()}</div>
+      <footer className="border-t border-toydb-border pt-4">
+        <div className="mb-3 flex flex-wrap items-center justify-center gap-2 rounded-lg border border-toydb-border bg-toydb-white px-2 py-2 text-[10px] font-medium uppercase tracking-wide text-toydb-slate shadow-sm sm:gap-3 sm:text-xs">
+          <span className="inline-flex items-center gap-1 rounded-full bg-toydb-teal-pale px-2 py-1 text-toydb-teal-dark">
+            <span className="font-bold text-toydb-navy">{toys.length}</span>
+            <span>Toys</span>
+          </span>
+          <span className="inline-flex items-center gap-1 rounded-full bg-toydb-orange-pale px-2 py-1 text-toydb-orange-dark">
+            <span>Cost</span>
+            <span className="font-bold text-toydb-navy">{formatCurrency(filteredCostTotal)}</span>
+          </span>
+          <span className="inline-flex items-center gap-1 rounded-full bg-toydb-gold/20 px-2 py-1 text-toydb-slate">
+            <span>Value</span>
+            <span className="font-bold text-toydb-navy">{formatCurrency(filteredValueTotal)}</span>
+          </span>
+          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 ${filteredNetTotal >= 0 ? 'bg-toydb-teal-pale text-toydb-teal-dark' : 'bg-toydb-danger-pale text-toydb-danger'}`}>
+            <span>Net</span>
+            <span className="font-bold">{formatCurrency(filteredNetTotal)}</span>
+          </span>
+        </div>
+        <div className="text-center">
+          <div className="text-sm font-bold">Welcome, {user.email}</div>
+          <div className="text-xs text-toydb-slate">Member since: {new Date(user.createdAt).toLocaleString()}</div>
+        </div>
       </footer>
     </div>
   )
