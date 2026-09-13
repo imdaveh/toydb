@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import ToyCard from '../components/ToyCard'
 
-export default function Dashboard({ wishlist = false, forSale = false }){
+export default function Dashboard({ wishlist = false, forSale = false, hidden = false }){
   const [user, setUser] = useState(null)
   const [error, setError] = useState(null)
   const [toys, setToys] = useState([])
@@ -52,7 +52,7 @@ export default function Dashboard({ wishlist = false, forSale = false }){
       return
     }
     try{
-      const listQuery = forSale ? '?for_sale=true' : wishlist ? '?wishlist=true' : ''
+      const listQuery = hidden ? '?hidden=true' : forSale ? '?for_sale=true' : wishlist ? '?wishlist=true' : ''
       const [uRes, tRes] = await Promise.all([
         fetch(import.meta.env.VITE_API_BASE + '/dashboard', { headers: { Authorization: 'Bearer ' + token } }),
         fetch(import.meta.env.VITE_API_BASE + '/toys' + listQuery, { headers: { Authorization: 'Bearer ' + token } })
@@ -64,10 +64,12 @@ export default function Dashboard({ wishlist = false, forSale = false }){
       if (!tRes.ok) { setError(tData.error || 'Failed to load toys'); setToys([]); setLoading(false); return }
       const isWishlistToy = toy => toy.is_wishlist === true || toy.is_wishlist === 1 || toy.is_wishlist === '1' || toy.is_wishlist === 'true'
       const isForSaleToy = toy => toy.for_sale === true || toy.for_sale === 1 || toy.for_sale === '1' || toy.for_sale === 'true'
+      const isHiddenToy = toy => toy.hidden === true || toy.hidden === 1 || toy.hidden === '1' || toy.hidden === 'true'
       const visibleToy = toy => {
-        if (forSale) return isForSaleToy(toy)
-        if (wishlist) return isWishlistToy(toy)
-        return !isWishlistToy(toy)
+        if (hidden) return isHiddenToy(toy)
+        if (forSale) return isForSaleToy(toy) && !isHiddenToy(toy)
+        if (wishlist) return isWishlistToy(toy) && !isHiddenToy(toy)
+        return !isWishlistToy(toy) && !isHiddenToy(toy)
       }
       setToys((tData.toys || []).filter(visibleToy).sort(sortToyRecords))
       setLoading(false)
@@ -96,8 +98,8 @@ export default function Dashboard({ wishlist = false, forSale = false }){
     return result
   }, {})
   const selectedToys = selectedGroup ? groups[selectedGroup] || [] : []
-  const filterableToys = (wishlist || forSale) ? toys : selectedToys
-  const baseScopeToys = (wishlist || forSale) ? toys : (selectedGroup ? selectedToys : toys)
+  const filterableToys = (wishlist || forSale || hidden) ? toys : selectedToys
+  const baseScopeToys = (wishlist || forSale || hidden) ? toys : (selectedGroup ? selectedToys : toys)
   const filterFields = {
     tag: 'Tag',
     condition: 'Condition',
@@ -180,7 +182,7 @@ export default function Dashboard({ wishlist = false, forSale = false }){
 
   useEffect(() => {
     setVisibleCount(24)
-  }, [searchQuery, grouping, selectedGroup, appliedFilters, wishlist, forSale])
+  }, [searchQuery, grouping, selectedGroup, appliedFilters, wishlist, forSale, hidden])
 
   useEffect(() => {
     if (!loadMoreRef.current || !hasMoreToys) return
@@ -206,7 +208,8 @@ export default function Dashboard({ wishlist = false, forSale = false }){
     searchQuery,
     appliedFilters,
     wishlist,
-    forSale
+    forSale,
+    hidden
   }
 
   function resetFilterState(){
@@ -276,13 +279,13 @@ export default function Dashboard({ wishlist = false, forSale = false }){
     <div className="space-y-6">
       <section className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="text-2xl font-bold tracking-tight text-toydb-navy">{forSale ? 'For Sale' : wishlist ? 'My Wishlist' : 'My Collection'}</h3>
-          <p className="mt-1 text-sm text-toydb-slate">{forSale ? 'These toys are currently marked for sale.' : wishlist ? 'Keep track of the toys you want to find.' : 'Keep every favorite in one place.'}</p>
+          <h3 className="text-2xl font-bold tracking-tight text-toydb-navy">{hidden ? 'Hidden Toys' : forSale ? 'For Sale' : wishlist ? 'My Wishlist' : 'My Collection'}</h3>
+          <p className="mt-1 text-sm text-toydb-slate">{hidden ? 'These toys are intentionally hidden from your main collection view.' : forSale ? 'These toys are currently marked for sale.' : wishlist ? 'Keep track of the toys you want to find.' : 'Keep every favorite in one place.'}</p>
         </div>
-        <Link to={forSale ? '/add' : wishlist ? '/wishlist/add' : '/add'} className="rounded-lg bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white shadow-sm hover:bg-toydb-teal-dark">{forSale ? '+ Add For Sale Toy' : wishlist ? '+ Add Wishlist Toy' : '+ Add Collection Toy'}</Link>
+        <Link to={hidden ? '/hidden/add' : forSale ? '/add' : wishlist ? '/wishlist/add' : '/add'} className="rounded-lg bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white shadow-sm hover:bg-toydb-teal-dark">{hidden ? '+ Add Hidden Toy' : forSale ? '+ Add For Sale Toy' : wishlist ? '+ Add Wishlist Toy' : '+ Add Collection Toy'}</Link>
       </section>
 
-      {!wishlist && !forSale && <section className="grid grid-cols-3 gap-2 sm:gap-3" aria-label="Collection summary">
+      {!wishlist && !forSale && !hidden && <section className="grid grid-cols-3 gap-2 sm:gap-3" aria-label="Collection summary">
         <div className="border-l-4 border-toydb-teal bg-toydb-white px-4 py-3 text-center shadow-sm">
           <div className="text-xl font-bold text-toydb-navy sm:text-2xl">{toys.length}</div>
           <div className="text-[10px] font-medium uppercase tracking-wide text-toydb-slate sm:text-xs">Toys</div>
@@ -297,7 +300,7 @@ export default function Dashboard({ wishlist = false, forSale = false }){
         </div>
       </section>}
 
-      {!wishlist && !forSale && <nav className="flex gap-5 border-b-2 border-toydb-border text-sm" aria-label="Collection views">
+      {!wishlist && !forSale && !hidden && <nav className="flex gap-5 border-b-2 border-toydb-border text-sm" aria-label="Collection views">
         {Object.entries(groupings).map(([key, view]) => (
           <button
             key={key}
@@ -310,8 +313,8 @@ export default function Dashboard({ wishlist = false, forSale = false }){
         ))}
       </nav>}
       {loading && <div>Loading toys...</div>}
-      {!loading && toys.length === 0 && <div className="border border-dashed border-toydb-teal bg-toydb-teal-pale p-6 text-sm text-toydb-teal-dark">{forSale ? 'No toys are currently marked for sale.' : wishlist ? 'No wishlist toys yet. Use "+ Add Wishlist Toy" above to add your first item.' : 'No toys yet. Use "+ Add Toy" above to add your first item.'}</div>}
-      {!loading && (wishlist || forSale) && toys.length > 0 && (
+      {!loading && toys.length === 0 && <div className="border border-dashed border-toydb-teal bg-toydb-teal-pale p-6 text-sm text-toydb-teal-dark">{hidden ? 'No hidden toys yet. Use "+ Add Hidden Toy" above to add your first item.' : forSale ? 'No toys are currently marked for sale.' : wishlist ? 'No wishlist toys yet. Use "+ Add Wishlist Toy" above to add your first item.' : 'No toys yet. Use "+ Add Toy" above to add your first item.'}</div>}
+      {!loading && (wishlist || forSale || hidden) && toys.length > 0 && (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-3">
             <button type="button" onClick={() => setSearchOpen(open => !open)} className="rounded-lg border border-toydb-teal bg-toydb-teal-pale px-3 py-2 text-sm font-medium text-toydb-teal-dark hover:bg-toydb-teal hover:text-toydb-white">
@@ -348,7 +351,7 @@ export default function Dashboard({ wishlist = false, forSale = false }){
           {filteredToys.length === 0 && <div className="border border-dashed border-toydb-border p-4 text-sm text-toydb-slate">No toys match this search or filter in the current scope.</div>}
         </div>
       )}
-      {!loading && !wishlist && !forSale && toys.length > 0 && !selectedGroup && (
+      {!loading && !wishlist && !forSale && !hidden && toys.length > 0 && !selectedGroup && (
         <div className="grid gap-3">
           {Object.entries(groups).sort(([a], [b]) => {
             if (b === 'Uncategorized') return -1
@@ -366,7 +369,7 @@ export default function Dashboard({ wishlist = false, forSale = false }){
           ))}
         </div>
       )}
-      {!loading && !wishlist && !forSale && selectedGroup && (
+      {!loading && !wishlist && !forSale && !hidden && selectedGroup && (
         <div className="space-y-4">
           <div className="-mt-3">
             <button type="button" onClick={() => { setSelectedGroup(null); resetFilterState() }} className="block mb-4 text-base font-medium text-toydb-slate hover:text-toydb-teal-dark">

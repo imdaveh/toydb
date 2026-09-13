@@ -6,8 +6,8 @@ import TagPicker from './TagPicker'
 
 const conditions = ['Mint', 'Excellent', 'Good', 'Fair', 'Poor', 'Broken']
 
-export default function ToyForm({ wishlist = false, onCreated, onCancel }){
-  const [form, setForm] = useState({ name: '', manufacturer: '', series: '', sub_series: '', theme: '', toyline: '', year: '', notes: '', condition: '', tagIds: [], accessories: [], cost: '', value: '', source: '', for_sale: false })
+export default function ToyForm({ wishlist = false, hidden = false, onCreated, onCancel }){
+  const [form, setForm] = useState({ name: '', manufacturer: '', series: '', sub_series: '', theme: '', toyline: '', year: '', notes: '', condition: '', tagIds: [], accessories: [], cost: '', value: '', source: '', for_sale: false, hidden: hidden })
   const [photos, setPhotos] = useState(null)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -37,7 +37,7 @@ export default function ToyForm({ wishlist = false, onCreated, onCancel }){
     }))
   }
 
-  function reset(){ setForm({ name: '', manufacturer: '', series: '', sub_series: '', theme: '', toyline: '', year: '', notes: '', condition: '', tagIds: [], accessories: [], cost: '', value: '', source: '', for_sale: false }); setPhotos(null) }
+  function reset(){ setForm({ name: '', manufacturer: '', series: '', sub_series: '', theme: '', toyline: '', year: '', notes: '', condition: '', tagIds: [], accessories: [], cost: '', value: '', source: '', for_sale: false, hidden: hidden }); setPhotos(null) }
 
   async function submit(event){
     event.preventDefault(); setError(null); setLoading(true)
@@ -51,6 +51,7 @@ export default function ToyForm({ wishlist = false, onCreated, onCancel }){
       data.append('accessories', JSON.stringify((form.accessories || []).filter(item => item.name && item.name.trim()).map(item => ({ name: item.name.trim(), has_accessory: Boolean(item.has_accessory) }))))
       data.append('wishlist', wishlist)
       data.append('for_sale', Boolean(form.for_sale))
+      data.append('hidden', Boolean(form.hidden))
       if (photos) Array.from(photos).forEach(photo => data.append('photos', photo))
       const response = await fetch(import.meta.env.VITE_API_BASE + '/toys', { method: 'POST', credentials: 'include', headers: { Authorization: 'Bearer ' + token }, body: data })
       const result = await response.json()
@@ -105,6 +106,10 @@ export default function ToyForm({ wishlist = false, onCreated, onCancel }){
       <Field label="Notes"><textarea value={form.notes} onChange={event => updateField('notes', event.target.value)} className="w-full p-2 border rounded" /></Field>
       <div className="flex gap-2"><Field label="Cost" className="w-1/2"><input value={form.cost} onChange={event => updateField('cost', event.target.value)} type="number" min="0" step="0.01" className="w-full p-2 border rounded" /></Field><Field label="Value" className="w-1/2"><input value={form.value} onChange={event => updateField('value', event.target.value)} type="number" min="0" step="0.01" className="w-full p-2 border rounded" /></Field></div>
       <Field label="Source"><AutocompleteInput value={form.source} suggestions={suggestions.source} onChange={value => updateField('source', value)} /></Field>
+      <div className="flex items-center gap-2 rounded border border-toydb-border bg-toydb-cream px-3 py-2">
+        <input id="hidden-checkbox" type="checkbox" checked={Boolean(form.hidden)} onChange={event => updateField('hidden', event.target.checked)} className="h-4 w-4 rounded border-toydb-border text-toydb-orange focus:ring-toydb-orange" />
+        <label htmlFor="hidden-checkbox" className="text-sm font-medium text-toydb-navy">Hidden</label>
+      </div>
       <div><label className="block text-sm text-toydb-slate mb-1">Add Photos</label><input type="file" multiple accept="image/*" onChange={event => setPhotos(event.target.files)} /></div>
       <div className="flex gap-2 justify-end"><button type="button" className="border border-toydb-border bg-toydb-white text-toydb-navy p-2 rounded-lg" onClick={() => onCancel ? onCancel() : reset()} disabled={loading}>Cancel</button><button type="submit" className="bg-toydb-orange text-toydb-white font-medium p-2 rounded-lg hover:bg-toydb-orange-dark" disabled={loading}>{loading ? 'Adding...' : wishlist ? 'Add to wishlist' : 'Add to collection'}</button></div>
     </form>

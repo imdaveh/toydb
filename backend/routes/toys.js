@@ -113,7 +113,7 @@ const csvUpload = multer({
   }
 });
 
-const importColumns = ['name', 'manufacturer', 'series', 'sub_series', 'theme', 'toyline', 'year', 'cost', 'value', 'source', 'notes', 'condition', 'tags', 'accessories', 'owned_accessories', 'wishlist', 'for_sale'];
+const importColumns = ['name', 'manufacturer', 'series', 'sub_series', 'theme', 'toyline', 'year', 'cost', 'value', 'source', 'notes', 'condition', 'tags', 'accessories', 'owned_accessories', 'wishlist', 'for_sale', 'hidden'];
 
 function escapeCsvCell(value) {
   const text = String(value ?? '');
@@ -247,13 +247,13 @@ router.get('/suggestions', authenticate, async (req, res) => {
 // Create toy
 router.post('/', authenticate, upload.array('photos', 8), async (req, res) => {
   const userId = req.user.id;
-  const { name, manufacturer, series, sub_series, theme, toyline, year, condition, cost, value, source, notes, wishlist, for_sale, tags, accessories } = req.body || {};
+  const { name, manufacturer, series, sub_series, theme, toyline, year, condition, cost, value, source, notes, wishlist, for_sale, hidden, tags, accessories } = req.body || {};
   if (!name) return res.status(400).json({ error: 'Name is required' });
   try {
     const photos = await preparePhotos(req.files || []);
     const [result] = await pool.query(
-      'INSERT INTO toys (user_id, is_wishlist, for_sale, name, manufacturer, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, `condition`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [userId, wishlist === 'true' || wishlist === true, for_sale === 'true' || for_sale === true, name, manufacturer || null, series || null, sub_series || null, theme || null, toyline || null, year ? parseInt(year) : null, cost ? parseFloat(cost) : null, value ? parseFloat(value) : null, source || null, notes || null, condition || null]
+      'INSERT INTO toys (user_id, is_wishlist, for_sale, hidden, name, manufacturer, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, `condition`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [userId, wishlist === 'true' || wishlist === true, for_sale === 'true' || for_sale === true, hidden === 'true' || hidden === true, name, manufacturer || null, series || null, sub_series || null, theme || null, toyline || null, year ? parseInt(year) : null, cost ? parseFloat(cost) : null, value ? parseFloat(value) : null, source || null, notes || null, condition || null]
     );
     const toyId = result.insertId;
     await setToyTags(toyId, parseTagIds(tags));
@@ -269,8 +269,8 @@ router.post('/', authenticate, upload.array('photos', 8), async (req, res) => {
 // Download a CSV template with sample data for bulk import
 router.get('/import/template', authenticate, (req, res) => {
   const sampleRows = [
-    ['Millennium Falcon', 'LEGO', 'Star Wars', '', 'Space', 'Millennium Falcon', '2000', '89.99', '129.99', 'Local shop', 'Includes box and instructions', 'Excellent', 'Star Wars,Space', 'Han Solo minifigure|Seat', 'Han Solo minifigure', 'false', 'false'],
-    ['Transformers Optimus Prime', 'Hasbro', 'Transformers', 'Generations', 'Autobots', 'Prime', '2022', '24.99', '42.50', 'Online auction', 'New in box', 'Like New', 'Robot,Action Figure', 'Blaster accessory', 'Blaster accessory', 'false', 'true']
+    ['Millennium Falcon', 'LEGO', 'Star Wars', '', 'Space', 'Millennium Falcon', '2000', '89.99', '129.99', 'Local shop', 'Includes box and instructions', 'Excellent', 'Star Wars,Space', 'Han Solo minifigure|Seat', 'Han Solo minifigure', 'false', 'false', 'false'],
+    ['Transformers Optimus Prime', 'Hasbro', 'Transformers', 'Generations', 'Autobots', 'Prime', '2022', '24.99', '42.50', 'Online auction', 'New in box', 'Like New', 'Robot,Action Figure', 'Blaster accessory', 'Blaster accessory', 'false', 'true', 'false']
   ];
 
   const csv = [
@@ -328,6 +328,7 @@ router.post('/import', authenticate, csvUpload.single('file'), async (req, res) 
     if (record.value && Number.isNaN(value)) { errors.push({ row: rowNumber, error: 'Value must be a number' }); continue; }
     const isWishlist = ['true', '1', 'yes'].includes((record.wishlist || '').toLowerCase());
     const isForSale = ['true', '1', 'yes'].includes((record.for_sale || '').toLowerCase());
+    const isHidden = ['true', '1', 'yes'].includes((record.hidden || '').toLowerCase());
 
     const requestedTagNames = record.tags ? String(record.tags).split(/[|,;\n]/).map(t => t.trim()).filter(Boolean) : [];
     const uniqueRequestedTagNames = [...new Map(requestedTagNames.map(tagName => [tagName.toLowerCase(), tagName])).values()];
@@ -349,8 +350,8 @@ router.post('/import', authenticate, csvUpload.single('file'), async (req, res) 
 
     try {
       const [result] = await pool.query(
-        'INSERT INTO toys (user_id, is_wishlist, for_sale, name, manufacturer, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, `condition`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [userId, isWishlist, isForSale, record.name, record.manufacturer || null, record.series || null, record.sub_series || null, record.theme || null, record.toyline || null, year, cost, value, record.source || null, record.notes || null, record.condition || null]
+        'INSERT INTO toys (user_id, is_wishlist, for_sale, hidden, name, manufacturer, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, `condition`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [userId, isWishlist, isForSale, isHidden, record.name, record.manufacturer || null, record.series || null, record.sub_series || null, record.theme || null, record.toyline || null, year, cost, value, record.source || null, record.notes || null, record.condition || null]
       );
       await setToyTags(result.insertId, tagIds);
       await setToyAccessories(result.insertId, accessoryEntries);
@@ -487,11 +488,25 @@ router.get('/', authenticate, async (req, res) => {
   const userId = req.user.id;
   const wishlist = req.query.wishlist === 'true' ? 1 : 0;
   const forSale = req.query.for_sale === 'true' ? 1 : 0;
+  const hidden = req.query.hidden === 'true' ? 1 : 0;
   try {
-    const query = forSale
-      ? 'SELECT id, is_wishlist, for_sale, name, manufacturer, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, `condition`, created_at FROM toys WHERE user_id = ? AND for_sale = ? ORDER BY (year IS NULL), year, (series IS NULL), series, (sub_series IS NULL), sub_series, (theme IS NULL), theme, name'
-      : 'SELECT id, is_wishlist, for_sale, name, manufacturer, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, `condition`, created_at FROM toys WHERE user_id = ? AND is_wishlist = ? ORDER BY (year IS NULL), year, (series IS NULL), series, (sub_series IS NULL), sub_series, (theme IS NULL), theme, name';
-    const [toys] = await pool.query(query, [userId, forSale || wishlist]);
+    let query = '';
+    let params = [userId];
+
+    if (hidden) {
+      query = 'SELECT id, is_wishlist, for_sale, hidden, name, manufacturer, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, `condition`, created_at FROM toys WHERE user_id = ? AND hidden = ? ORDER BY (year IS NULL), year, (series IS NULL), series, (sub_series IS NULL), sub_series, (theme IS NULL), theme, name';
+      params.push(1);
+    } else if (forSale) {
+      query = 'SELECT id, is_wishlist, for_sale, hidden, name, manufacturer, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, `condition`, created_at FROM toys WHERE user_id = ? AND for_sale = ? AND hidden = 0 ORDER BY (year IS NULL), year, (series IS NULL), series, (sub_series IS NULL), sub_series, (theme IS NULL), theme, name';
+      params.push(1);
+    } else if (wishlist) {
+      query = 'SELECT id, is_wishlist, for_sale, hidden, name, manufacturer, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, `condition`, created_at FROM toys WHERE user_id = ? AND is_wishlist = ? AND hidden = 0 ORDER BY (year IS NULL), year, (series IS NULL), series, (sub_series IS NULL), sub_series, (theme IS NULL), theme, name';
+      params.push(1);
+    } else {
+      query = 'SELECT id, is_wishlist, for_sale, hidden, name, manufacturer, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, `condition`, created_at FROM toys WHERE user_id = ? AND is_wishlist = 0 AND hidden = 0 ORDER BY (year IS NULL), year, (series IS NULL), series, (sub_series IS NULL), sub_series, (theme IS NULL), theme, name';
+    }
+
+    const [toys] = await pool.query(query, params);
     const orderedToys = sortToyCollection(toys);
     for (const t of orderedToys) {
       const [photos] = await pool.query('SELECT id, filename, original_name FROM toy_photos WHERE toy_id = ?', [t.id]);
@@ -516,7 +531,7 @@ router.get('/:id', authenticate, async (req, res) => {
   const userId = req.user.id;
   const id = req.params.id;
   try {
-    const [rows] = await pool.query('SELECT id, is_wishlist, for_sale, name, manufacturer, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, `condition`, created_at FROM toys WHERE id = ? AND user_id = ?', [id, userId]);
+    const [rows] = await pool.query('SELECT id, is_wishlist, for_sale, hidden, name, manufacturer, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, `condition`, created_at FROM toys WHERE id = ? AND user_id = ?', [id, userId]);
     if (!rows.length) return res.status(404).json({ error: 'Toy not found' });
     const toy = rows[0];
     const [photos] = await pool.query('SELECT id, filename, original_name FROM toy_photos WHERE toy_id = ?', [toy.id]);
@@ -539,10 +554,10 @@ router.get('/:id', authenticate, async (req, res) => {
 router.put('/:id', authenticate, async (req, res) => {
   const userId = req.user.id;
   const id = req.params.id;
-  const { name, manufacturer, series, sub_series, theme, toyline, year, condition, cost, value, source, notes, tags, accessories, for_sale } = req.body || {};
+  const { name, manufacturer, series, sub_series, theme, toyline, year, condition, cost, value, source, notes, tags, accessories, for_sale, hidden } = req.body || {};
   if (!name) return res.status(400).json({ error: 'Name is required' });
   try {
-    const [result] = await pool.query('UPDATE toys SET name=?, manufacturer=?, series=?, sub_series=?, theme=?, toyline=?, `year`=?, cost=?, `value`=?, source=?, notes=?, `condition`=?, for_sale=? WHERE id=? AND user_id=?', [name, manufacturer || null, series || null, sub_series || null, theme || null, toyline || null, year ? parseInt(year) : null, cost ? parseFloat(cost) : null, value ? parseFloat(value) : null, source || null, notes || null, condition || null, for_sale === 'true' || for_sale === true || for_sale === 1 || for_sale === '1', id, userId]);
+    const [result] = await pool.query('UPDATE toys SET name=?, manufacturer=?, series=?, sub_series=?, theme=?, toyline=?, `year`=?, cost=?, `value`=?, source=?, notes=?, `condition`=?, for_sale=?, hidden=? WHERE id=? AND user_id=?', [name, manufacturer || null, series || null, sub_series || null, theme || null, toyline || null, year ? parseInt(year) : null, cost ? parseFloat(cost) : null, value ? parseFloat(value) : null, source || null, notes || null, condition || null, for_sale === 'true' || for_sale === true || for_sale === 1 || for_sale === '1', hidden === 'true' || hidden === true || hidden === 1 || hidden === '1', id, userId]);
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Toy not found' });
     await setToyTags(id, parseTagIds(tags));
     await setToyAccessories(id, parseAccessoryEntries(accessories));

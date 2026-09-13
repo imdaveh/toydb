@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 export default function Lists(){
   const [wishlistCount, setWishlistCount] = useState(0)
   const [forSaleCount, setForSaleCount] = useState(0)
+  const [hiddenCount, setHiddenCount] = useState(0)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -19,19 +20,23 @@ export default function Lists(){
           return
         }
 
-        const [wishlistRes, forSaleRes] = await Promise.all([
+        const [wishlistRes, forSaleRes, hiddenRes] = await Promise.all([
           fetch(import.meta.env.VITE_API_BASE + '/toys?wishlist=true', { headers: { Authorization: 'Bearer ' + accessToken } }),
-          fetch(import.meta.env.VITE_API_BASE + '/toys?for_sale=true', { headers: { Authorization: 'Bearer ' + accessToken } })
+          fetch(import.meta.env.VITE_API_BASE + '/toys?for_sale=true', { headers: { Authorization: 'Bearer ' + accessToken } }),
+          fetch(import.meta.env.VITE_API_BASE + '/toys?hidden=true', { headers: { Authorization: 'Bearer ' + accessToken } })
         ])
 
         const wishlistData = wishlistRes.ok ? await wishlistRes.json() : { toys: [] }
         const forSaleData = forSaleRes.ok ? await forSaleRes.json() : { toys: [] }
+        const hiddenData = hiddenRes.ok ? await hiddenRes.json() : { toys: [] }
 
         setWishlistCount((wishlistData.toys || []).length)
         setForSaleCount((forSaleData.toys || []).length)
+        setHiddenCount((hiddenData.toys || []).length)
       } catch (error) {
         setWishlistCount(0)
         setForSaleCount(0)
+        setHiddenCount(0)
       } finally {
         setLoading(false)
       }
@@ -52,6 +57,12 @@ export default function Lists(){
       description: 'Toys currently marked for sale.',
       count: forSaleCount,
       to: '/for-sale'
+    },
+    {
+      title: 'Hidden',
+      description: 'Toys kept out of the normal collection view.',
+      count: hiddenCount,
+      to: '/hidden'
     }
   ]
 

@@ -53,7 +53,7 @@ export default function EditToy(){
         name: data.toy.name || '', manufacturer: data.toy.manufacturer || '', series: data.toy.series || '',
         sub_series: data.toy.sub_series || '', theme: data.toy.theme || '', toyline: data.toy.toyline || '', year: data.toy.year || '',
         notes: data.toy.notes || '', condition: data.toy.condition || '', tagIds: (data.toy.tags || []).map(tag => tag.id), cost: data.toy.cost || '',
-        value: data.toy.value || '', source: data.toy.source || '', for_sale: Boolean(data.toy.for_sale),
+        value: data.toy.value || '', source: data.toy.source || '', for_sale: Boolean(data.toy.for_sale), hidden: Boolean(data.toy.hidden),
         accessories: normalizeAccessoryList(data.toy.accessories || [])
       })
     } catch (error) { setError('Server error') }
@@ -63,8 +63,9 @@ export default function EditToy(){
   useEffect(() => { load() }, [id])
 
   function goBackToPreviousView(){
-    const returnTarget = location.state?.from || (toy.is_wishlist ? '/wishlist' : '/dashboard')
-    const returnPath = typeof returnTarget === 'string' ? returnTarget : returnTarget?.pathname || (toy.is_wishlist ? '/wishlist' : '/dashboard')
+    const defaultPath = toy.hidden ? '/hidden' : (toy.is_wishlist ? '/wishlist' : '/dashboard')
+    const returnTarget = location.state?.from || defaultPath
+    const returnPath = typeof returnTarget === 'string' ? returnTarget : returnTarget?.pathname || defaultPath
     const returnState = typeof returnTarget === 'string'
       ? { refresh: Date.now() }
       : { ...(returnTarget?.state || {}), refresh: Date.now() }
@@ -77,7 +78,7 @@ export default function EditToy(){
     const token = await getToken()
     if (!token) { setError('Not authenticated'); setBusy(false); return }
     try {
-      const response = await fetch(import.meta.env.VITE_API_BASE + '/toys/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ ...form, tags: form.tagIds, accessories: form.accessories || [], for_sale: Boolean(form.for_sale) }) })
+      const response = await fetch(import.meta.env.VITE_API_BASE + '/toys/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify({ ...form, tags: form.tagIds, accessories: form.accessories || [], for_sale: Boolean(form.for_sale), hidden: Boolean(form.hidden) }) })
       const data = await response.json()
       if (!response.ok) { setError(data.error || 'Failed'); setBusy(false); return }
       if (photosFiles.length) {
@@ -176,6 +177,10 @@ export default function EditToy(){
         <div className="flex items-center gap-2 rounded border border-toydb-border bg-toydb-cream px-3 py-2">
           <input id="for-sale-checkbox" type="checkbox" checked={Boolean(form.for_sale)} onChange={event => updateField('for_sale', event.target.checked)} className="h-4 w-4 rounded border-toydb-border text-toydb-orange focus:ring-toydb-orange" />
           <label htmlFor="for-sale-checkbox" className="text-sm font-medium text-toydb-navy">For Sale</label>
+        </div>
+        <div className="flex items-center gap-2 rounded border border-toydb-border bg-toydb-cream px-3 py-2">
+          <input id="hidden-checkbox" type="checkbox" checked={Boolean(form.hidden)} onChange={event => updateField('hidden', event.target.checked)} className="h-4 w-4 rounded border-toydb-border text-toydb-orange focus:ring-toydb-orange" />
+          <label htmlFor="hidden-checkbox" className="text-sm font-medium text-toydb-navy">Hidden</label>
         </div>
         <Field label="Tags"><TagPicker allTags={allTags} selectedTagIds={form.tagIds || []} onChange={value => updateField('tagIds', value)} /></Field>
         <div className="space-y-2">
