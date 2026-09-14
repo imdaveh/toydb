@@ -21,7 +21,7 @@ const upload = multer({
 async function createThumbnailFromBuffer(buffer, targetPath) {
   await sharp(buffer, { limitInputPixels: 100000000 })
     .rotate()
-    .resize(240, 240, { fit: 'cover', withoutEnlargement: true })
+    .resize(240, 240, { fit: 'inside', withoutEnlargement: true })
     .webp({ quality: 80 })
     .toFile(targetPath);
 }
