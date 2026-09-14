@@ -57,19 +57,25 @@ export default function App(){
                 </div>
               </div>
 
-              <button
-                type="button"
-                aria-label="Toggle navigation menu"
-                aria-expanded={mobileMenuOpen}
-                onClick={() => setMobileMenuOpen(value => !value)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-toydb-navy-light bg-toydb-navy text-toydb-cream transition hover:border-toydb-orange-light hover:text-toydb-orange-light md:hidden"
-              >
-                <span className="flex flex-col items-center gap-1.5">
-                  <span className="block h-0.5 w-5 rounded-full bg-current" />
-                  <span className="block h-0.5 w-5 rounded-full bg-current" />
-                  <span className="block h-0.5 w-5 rounded-full bg-current" />
-                </span>
-              </button>
+              <nav className="flex items-center justify-end gap-3 text-xs sm:gap-4 md:hidden">
+                <Link to="/dashboard" className="px-1.5 py-2 text-sm font-semibold tracking-wide text-toydb-cream hover:text-toydb-orange-light">Collection</Link>
+                <Link to="/gallery" className="px-1.5 py-2 text-sm font-semibold tracking-wide text-toydb-cream hover:text-toydb-orange-light">Gallery</Link>
+                <Link to="/lists" className="px-1.5 py-2 text-sm font-semibold tracking-wide text-toydb-cream hover:text-toydb-orange-light">Lists</Link>
+
+                <button
+                  type="button"
+                  aria-label="Toggle navigation menu"
+                  aria-expanded={mobileMenuOpen}
+                  onClick={() => setMobileMenuOpen(value => !value)}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-toydb-navy-light bg-toydb-navy text-toydb-cream transition hover:border-toydb-orange-light hover:text-toydb-orange-light"
+                >
+                  <span className="flex flex-col items-center gap-1.5">
+                    <span className="block h-0.5 w-4 rounded-full bg-current" />
+                    <span className="block h-0.5 w-4 rounded-full bg-current" />
+                    <span className="block h-0.5 w-4 rounded-full bg-current" />
+                  </span>
+                </button>
+              </nav>
 
               <nav className="hidden items-center justify-end gap-3 text-sm md:flex">
                 <Link to="/dashboard" className="font-medium text-toydb-cream hover:text-toydb-orange-light">Collection</Link>
@@ -83,9 +89,6 @@ export default function App(){
 
             {mobileMenuOpen && (
               <nav className="mt-4 flex flex-col gap-2 rounded-xl border border-toydb-navy-light bg-toydb-navy p-3 md:hidden">
-                <Link to="/dashboard" onClick={() => setMobileMenuOpen(false)} className="rounded-lg px-2 py-2 font-medium text-toydb-cream hover:bg-toydb-navy-light hover:text-toydb-orange-light">Collection</Link>
-                <Link to="/gallery" onClick={() => setMobileMenuOpen(false)} className="rounded-lg px-2 py-2 font-medium text-toydb-cream hover:bg-toydb-navy-light hover:text-toydb-orange-light">Gallery</Link>
-                <Link to="/lists" onClick={() => setMobileMenuOpen(false)} className="rounded-lg px-2 py-2 font-medium text-toydb-cream hover:bg-toydb-navy-light hover:text-toydb-orange-light">Lists</Link>
                 <Link to="/account" onClick={() => setMobileMenuOpen(false)} className="rounded-lg px-2 py-2 font-medium text-toydb-cream hover:bg-toydb-navy-light hover:text-toydb-orange-light">Account</Link>
                 {user?.isAdmin && <Link to="/admin" onClick={() => setMobileMenuOpen(false)} className="rounded-lg px-2 py-2 font-medium text-toydb-cream hover:bg-toydb-navy-light hover:text-toydb-orange-light">Admin</Link>}
                 <button type="button" onClick={() => { setMobileMenuOpen(false); logout(); }} className="rounded-lg px-2 py-2 text-left font-medium text-toydb-cream hover:bg-toydb-navy-light hover:text-toydb-orange-light">Logout</button>

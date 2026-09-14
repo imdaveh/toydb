@@ -291,15 +291,49 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
   if (error) return <div className="bg-toydb-danger-pale text-toydb-danger p-3 rounded-lg">{error}</div>
   if (!user) return <div className="text-toydb-slate">Loading...</div>
 
+  const isListScope = wishlist || forSale || hidden
+
   return (
     <div className="space-y-6">
-      <section className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h3 className="text-2xl font-bold tracking-tight text-toydb-navy">{hidden ? 'Hidden Toys' : forSale ? 'For Sale' : wishlist ? 'My Wishlist' : 'My Collection'}</h3>
-          <p className="mt-1 text-sm text-toydb-slate">{hidden ? 'These toys are intentionally hidden from your main collection view.' : forSale ? 'These toys are currently marked for sale.' : wishlist ? 'Keep track of the toys you want to find.' : 'Keep every favorite in one place.'}</p>
+      {isListScope ? (
+        <div className="space-y-3">
+          <section className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h3 className="text-2xl font-bold tracking-tight text-toydb-navy">{hidden ? 'Hidden Toys' : forSale ? 'For Sale' : 'My Wishlist'}</h3>
+              <p className="mt-1 text-sm text-toydb-slate">{hidden ? 'These toys are intentionally hidden from your main collection view.' : forSale ? 'These toys are currently marked for sale.' : 'Keep track of the toys you want to find.'}</p>
+            </div>
+            <Link to={hidden ? '/hidden/add' : forSale ? '/add' : '/wishlist/add'} className="inline-flex items-center justify-center rounded-lg bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white shadow-sm transition hover:bg-toydb-teal-dark sm:ml-auto">
+              {hidden ? '+ Add Hidden Toy' : forSale ? '+ Add For Sale Toy' : '+ Add Wishlist Toy'}
+            </Link>
+          </section>
+
+          <div className="flex items-center justify-between gap-3">
+            <Link to="/lists" className="inline-flex items-center gap-1 text-sm font-medium text-toydb-slate hover:text-toydb-teal-dark">
+              <span aria-hidden="true">←</span>
+              <span>Back to Lists</span>
+            </Link>
+          </div>
+
+          {!loading && (
+            <div className="flex flex-wrap items-center gap-3">
+              <button type="button" onClick={() => setSearchOpen(open => !open)} className="rounded-lg border border-toydb-teal bg-toydb-teal-pale px-3 py-2 text-sm font-medium text-toydb-teal-dark transition hover:bg-toydb-teal hover:text-toydb-white">
+                Search: {searchQuery ? 'Active' : 'None'}
+              </button>
+              <button type="button" onClick={() => setFilterOpen(open => !open)} className="rounded-lg border border-toydb-orange bg-toydb-orange-pale px-3 py-2 text-sm font-medium text-toydb-orange-dark transition hover:bg-toydb-orange hover:text-toydb-white">
+                Filter: {appliedFilters.length ? `${appliedFilters.length} active` : 'None'}
+              </button>
+            </div>
+          )}
         </div>
-        <Link to={hidden ? '/hidden/add' : forSale ? '/add' : wishlist ? '/wishlist/add' : '/add'} className="rounded-lg bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white shadow-sm hover:bg-toydb-teal-dark">{hidden ? '+ Add Hidden Toy' : forSale ? '+ Add For Sale Toy' : wishlist ? '+ Add Wishlist Toy' : '+ Add Collection Toy'}</Link>
-      </section>
+      ) : (
+        <section className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="text-2xl font-bold tracking-tight text-toydb-navy">My Collection</h3>
+            <p className="mt-1 text-sm text-toydb-slate">Keep every favorite in one place.</p>
+          </div>
+          <Link to="/add" className="rounded-lg bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white shadow-sm hover:bg-toydb-teal-dark">+ Add Collection Toy</Link>
+        </section>
+      )}
 
       {!wishlist && !forSale && !hidden && <section className="grid grid-cols-3 gap-2 sm:gap-3" aria-label="Collection summary">
         <button
@@ -334,14 +368,6 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
       {!loading && toys.length === 0 && <div className="border border-dashed border-toydb-teal bg-toydb-teal-pale p-6 text-sm text-toydb-teal-dark">{hidden ? 'No hidden toys yet. Use "+ Add Hidden Toy" above to add your first item.' : forSale ? 'No toys are currently marked for sale.' : wishlist ? 'No wishlist toys yet. Use "+ Add Wishlist Toy" above to add your first item.' : 'No toys yet. Use "+ Add Toy" above to add your first item.'}</div>}
       {!loading && (wishlist || forSale || hidden) && toys.length > 0 && (
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <button type="button" onClick={() => setSearchOpen(open => !open)} className="rounded-lg border border-toydb-teal bg-toydb-teal-pale px-3 py-2 text-sm font-medium text-toydb-teal-dark hover:bg-toydb-teal hover:text-toydb-white">
-              Search: {searchQuery ? 'Active' : 'None'}
-            </button>
-            <button type="button" onClick={() => setFilterOpen(open => !open)} className="rounded-lg border border-toydb-orange bg-toydb-orange-pale px-3 py-2 text-sm font-medium text-toydb-orange-dark hover:bg-toydb-orange hover:text-toydb-white">
-              Filter: {appliedFilters.length ? `${appliedFilters.length} active` : 'None'}
-            </button>
-          </div>
           {(searchQuery || appliedFilters.length > 0) && <div className="flex flex-wrap gap-2">
             {searchQuery && <button type="button" onClick={clearSearch} className="rounded-full border border-toydb-teal bg-toydb-teal-pale px-2 py-1 text-xs font-medium text-toydb-teal-dark hover:bg-toydb-teal hover:text-toydb-white">
               {searchFields[searchField]}: {searchQuery} ×

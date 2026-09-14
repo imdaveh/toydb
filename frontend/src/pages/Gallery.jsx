@@ -12,6 +12,42 @@ export default function Gallery(){
   const [editingId, setEditingId] = useState(null)
   const [draftCaption, setDraftCaption] = useState('')
 
+  const selectedIndex = selectedPhoto ? photos.findIndex(photo => photo.id === selectedPhoto.id) : -1
+
+  function goToPreviousPhoto(){
+    if (photos.length <= 1) return
+    const previousIndex = selectedIndex <= 0 ? photos.length - 1 : selectedIndex - 1
+    setSelectedPhoto(photos[previousIndex])
+  }
+
+  function goToNextPhoto(){
+    if (photos.length <= 1) return
+    const nextIndex = selectedIndex >= photos.length - 1 ? 0 : selectedIndex + 1
+    setSelectedPhoto(photos[nextIndex])
+  }
+
+  useEffect(() => {
+    if (!selectedPhoto) return
+
+    function handleKeyDown(event){
+      if (event.key === 'Escape') {
+        setSelectedPhoto(null)
+        return
+      }
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault()
+        goToPreviousPhoto()
+      }
+      if (event.key === 'ArrowRight') {
+        event.preventDefault()
+        goToNextPhoto()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selectedPhoto, selectedIndex, photos])
+
   async function getToken(){
     const refresh = await fetch(import.meta.env.VITE_API_BASE + '/auth/refresh', { method: 'POST', credentials: 'include' })
     const data = await refresh.json()
@@ -217,10 +253,23 @@ export default function Gallery(){
 
       {selectedPhoto && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4" onClick={() => setSelectedPhoto(null)}>
-          <div className="relative w-full max-w-4xl rounded-2xl bg-toydb-white p-4 shadow-2xl" onClick={event => event.stopPropagation()}>
-            <button type="button" onClick={() => setSelectedPhoto(null)} className="absolute right-3 top-3 rounded-full bg-black/50 px-2 py-1 text-sm text-white">Close</button>
-            <img src={import.meta.env.VITE_API_BASE + selectedPhoto.url} alt={selectedPhoto.caption || 'Expanded gallery photo'} className="mx-auto max-h-[75vh] w-full rounded-xl object-contain" />
-            {selectedPhoto.caption && <p className="mt-4 text-center text-base text-toydb-navy">{selectedPhoto.caption}</p>}
+          <div className="relative w-full max-w-5xl rounded-2xl bg-toydb-white p-4 shadow-2xl" onClick={event => event.stopPropagation()}>
+            <button type="button" onClick={() => setSelectedPhoto(null)} className="absolute right-3 top-3 z-10 rounded-full bg-black/50 px-2 py-1 text-sm text-white">Close</button>
+
+            <div className="flex items-center gap-3">
+              <button type="button" onClick={goToPreviousPhoto} disabled={photos.length <= 1} aria-label="View previous photo" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-toydb-border bg-toydb-cream text-xl text-toydb-navy transition hover:bg-toydb-cream/80 disabled:cursor-not-allowed disabled:opacity-40">
+                ←
+              </button>
+
+              <div className="min-w-0 flex-1">
+                <img src={import.meta.env.VITE_API_BASE + selectedPhoto.url} alt={selectedPhoto.caption || 'Expanded gallery photo'} className="mx-auto max-h-[75vh] w-full rounded-xl object-contain" />
+                {selectedPhoto.caption && <p className="mt-4 text-center text-base text-toydb-navy">{selectedPhoto.caption}</p>}
+              </div>
+
+              <button type="button" onClick={goToNextPhoto} disabled={photos.length <= 1} aria-label="View next photo" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-toydb-border bg-toydb-cream text-xl text-toydb-navy transition hover:bg-toydb-cream/80 disabled:cursor-not-allowed disabled:opacity-40">
+                →
+              </button>
+            </div>
           </div>
         </div>
       )}

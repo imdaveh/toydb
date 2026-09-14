@@ -22,8 +22,9 @@ function getReferencedPhotoNames(rows) {
 }
 
 async function getOrphanedPhotoFiles() {
-  const [rows] = await pool.query('SELECT filename FROM toy_photos');
-  const referencedNames = getReferencedPhotoNames(rows);
+  const [toyRows] = await pool.query('SELECT filename FROM toy_photos');
+  const [galleryRows] = await pool.query('SELECT filename FROM gallery_photos');
+  const referencedNames = getReferencedPhotoNames([...toyRows, ...galleryRows]);
 
   let entries = [];
   try {
