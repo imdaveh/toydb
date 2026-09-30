@@ -33,7 +33,7 @@ test('replaces a same-level sibling while keeping ancestor steps in place', () =
   assert.deepEqual(nextPath, [{ field: 'manufacturer', value: 'Hasbro' }, { field: 'toyline', value: 'G.I. Joe' }])
 })
 
-test('keeps drilling through a single series when that series contains multiple sub-series', () => {
+test('stops at the series level once the toyline is narrowed to a single series', () => {
   const toys = [
     { manufacturer: 'Hasbro', toyline: 'G.I. Joe', series: 'A Real American Hero', sub_series: 'Team', year: 1985 },
     { manufacturer: 'Hasbro', toyline: 'G.I. Joe', series: 'A Real American Hero', sub_series: 'Night Force', year: 1985 },
@@ -42,8 +42,8 @@ test('keeps drilling through a single series when that series contains multiple 
 
   const drillState = resolveDrillGroups(toys, 'series')
 
-  assert.equal(drillState.field, 'sub_series')
-  assert.deepEqual(drillState.groups.map(([label]) => label), ['Astonishing Adventures', 'Night Force', 'Team'])
+  assert.equal(drillState.field, 'series')
+  assert.deepEqual(drillState.groups.map(([label]) => label), ['A Real American Hero'])
 })
 
 test('adds the implicit series step when drilling from a toyline into a sub-series list', () => {
@@ -60,7 +60,7 @@ test('adds the implicit series step when drilling from a toyline into a sub-seri
   ])
 })
 
-test('drills to sub-series even when series metadata is blank under a selected toyline', () => {
+test('stops at the series step even when the series data is blank under a selected toyline', () => {
   const toys = [
     { manufacturer: 'Hasbro', toyline: 'G.I. Joe', series: '', sub_series: 'A Real American Hero', year: 1985 },
     { manufacturer: 'Hasbro', toyline: 'G.I. Joe', series: '', sub_series: 'Night Force', year: 1985 },
@@ -69,8 +69,8 @@ test('drills to sub-series even when series metadata is blank under a selected t
 
   const drillState = resolveDrillGroups(toys, 'series')
 
-  assert.equal(drillState.field, 'sub_series')
-  assert.deepEqual(drillState.groups.map(([label]) => label), ['A Real American Hero', 'Astonishing Adventures', 'Night Force'])
+  assert.equal(drillState.field, 'series')
+  assert.deepEqual(drillState.groups, [])
 })
 
 test('adds the implicit series ancestor when a manufacturer-selected toyline has a single series but multiple sub-series', () => {
@@ -116,7 +116,7 @@ test('prefills the add-toy form from the current tree path and available common 
   })
 })
 
-test('keeps the root-specific drill flow aligned with manufacturer and year entry points', () => {
+test('uses the shorter drill chains for the dashboard entry points', () => {
   const toys = [
     { manufacturer: 'Hasbro', toyline: 'G.I. Joe', series: 'A Real American Hero', sub_series: 'Team', theme: 'Action', year: 1985 },
     { manufacturer: 'Hasbro', toyline: 'G.I. Joe', series: 'A Real American Hero', sub_series: 'Night Force', theme: 'Action', year: 1985 },
@@ -124,19 +124,23 @@ test('keeps the root-specific drill flow aligned with manufacturer and year entr
     { manufacturer: 'Hasbro', toyline: 'Transformers', series: 'Generation 1', sub_series: 'Autobots', theme: 'Sci-Fi', year: 1984 }
   ]
 
-  assert.equal(getNextField('sub_series'), 'theme')
-  assert.equal(getNextField('theme'), null)
+  assert.equal(getNextField('toyline'), 'series')
+  assert.equal(getNextField('series'), null)
 
   const manufacturerDrill = resolveDrillGroups(toys, 'manufacturer')
   assert.equal(manufacturerDrill.field, 'manufacturer')
   assert.deepEqual(manufacturerDrill.groups.map(([label]) => label), ['Hasbro', 'Takara'])
+
+  const toylineDrill = resolveDrillGroups(toys, 'toyline')
+  assert.equal(toylineDrill.field, 'toyline')
+  assert.deepEqual(toylineDrill.groups.map(([label]) => label), ['G.I. Joe', 'Transformers'])
 
   const yearDrill = resolveDrillGroups(toys, 'year')
   assert.equal(yearDrill.field, 'year')
   assert.deepEqual(yearDrill.groups.map(([label]) => label), ['1984', '1985', '2000'])
 })
 
-test('prefers the next hierarchy stage when a node has a single value', () => {
+test('advances directly to the series list when drilling from a toyline', () => {
   const toys = [
     { manufacturer: 'Hasbro', toyline: 'G.I. Joe', series: 'A Real American Hero', sub_series: 'Team', theme: 'Action', year: 1985 },
     { manufacturer: 'Hasbro', toyline: 'G.I. Joe', series: 'The Mission', sub_series: 'Night Force', theme: 'Action', year: 1985 }

@@ -454,15 +454,17 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
         <div className="space-y-4">
           <div className="-mt-3">
             <button type="button" onClick={goBackOneLevel} className="block mb-4 text-base font-medium text-toydb-slate hover:text-toydb-teal-dark">
-              &larr; Back to {selectedGroupPath.length > 1 ? {
-                manufacturer: 'Manufacturers',
-                toyline: 'Toylines',
-                series: 'Series',
-                sub_series: 'Sub-Series',
-                year: 'Years'
-              }[selectedGroupPath[selectedGroupPath.length - 2].field] || selectedGroupPath[selectedGroupPath.length - 2].field : activeGrouping.label}
+              &larr; Back to {(() => {
+                const previousField = selectedGroupPath[selectedGroupPath.length - 1]?.field || activeGrouping.field
+                return {
+                  manufacturer: 'Manufacturers',
+                  toyline: 'Toylines',
+                  series: 'Series',
+                  year: 'Years'
+                }[previousField] || previousField
+              })()}
             </button>
-            <h4 className="text-xl font-bold text-toydb-navy">{breadcrumbPath.map(step => step.value).join(' / ')} <span className="text-toydb-teal-dark">({selectedToys.length})</span></h4>
+            <h4 className="text-xl font-bold text-toydb-navy">{breadcrumbPath.filter(step => !['sub_series', 'theme'].includes(step.field)).map(step => step.value).join(' / ')} <span className="text-toydb-teal-dark">({selectedToys.length})</span></h4>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <button type="button" onClick={() => setSearchOpen(open => !open)} className="rounded-lg border border-toydb-teal bg-toydb-teal-pale px-3 py-2 text-sm font-medium text-toydb-teal-dark hover:bg-toydb-teal hover:text-toydb-white">

@@ -304,6 +304,10 @@ export default function EditToy(){
     setEditorState({ ...defaultEditorState, crop: { x: 0, y: 0, width: 1, height: 1 } })
   }
 
+  function updateImageAdjustment(field, value){
+    setEditorState(current => ({ ...current, [field]: Number(value) }))
+  }
+
   function updateField(field, value){ setForm(current => ({ ...current, [field]: value })) }
 
   function updateAccessory(index, updates) {
@@ -431,15 +435,15 @@ export default function EditToy(){
                       </div>
                       <label className="block text-sm font-semibold text-toydb-navy">
                         Brightness
-                        <input type="range" min="0" max="200" value={editorState.brightness} onInput={event => setEditorState(current => ({ ...current, brightness: Number(event.target.value) }))} className="mt-1 w-full accent-toydb-teal" />
+                        <input type="range" min="0" max="200" value={editorState.brightness} onInput={event => updateImageAdjustment('brightness', event.target.value)} onChange={event => updateImageAdjustment('brightness', event.target.value)} className="mt-1 w-full accent-toydb-teal" />
                       </label>
                       <label className="block text-sm font-semibold text-toydb-navy">
                         Contrast
-                        <input type="range" min="0" max="200" value={editorState.contrast} onInput={event => setEditorState(current => ({ ...current, contrast: Number(event.target.value) }))} className="mt-1 w-full accent-toydb-teal" />
+                        <input type="range" min="0" max="200" value={editorState.contrast} onInput={event => updateImageAdjustment('contrast', event.target.value)} onChange={event => updateImageAdjustment('contrast', event.target.value)} className="mt-1 w-full accent-toydb-teal" />
                       </label>
                       <label className="block text-sm font-semibold text-toydb-navy">
                         Saturation
-                        <input type="range" min="0" max="200" value={editorState.saturation} onInput={event => setEditorState(current => ({ ...current, saturation: Number(event.target.value) }))} className="mt-1 w-full accent-toydb-teal" />
+                        <input type="range" min="0" max="200" value={editorState.saturation} onInput={event => updateImageAdjustment('saturation', event.target.value)} onChange={event => updateImageAdjustment('saturation', event.target.value)} className="mt-1 w-full accent-toydb-teal" />
                       </label>
                       <button type="button" onClick={resetEditorState} className="w-full rounded-lg border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-semibold text-toydb-navy shadow-sm transition hover:border-toydb-teal hover:bg-toydb-cream focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-toydb-teal focus-visible:ring-offset-2">Reset</button>
                       <button type="button" onClick={saveEditedPhoto} disabled={busy} className="w-full rounded-lg bg-toydb-teal px-3 py-2 text-sm font-semibold text-toydb-white shadow-sm transition hover:bg-toydb-teal-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-toydb-teal focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60">{busy ? 'Saving...' : 'Save edited photo'}</button>

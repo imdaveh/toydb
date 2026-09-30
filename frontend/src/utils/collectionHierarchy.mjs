@@ -1,16 +1,16 @@
 export const NEXT_FIELD_BY_FIELD = {
   manufacturer: 'toyline',
   toyline: 'series',
-  series: 'sub_series',
-  sub_series: 'theme',
+  series: null,
+  sub_series: null,
   theme: null,
   year: 'manufacturer'
 }
 
 export const FIELD_ORDER_BY_ROOT = {
-  manufacturer: ['manufacturer', 'toyline', 'series', 'sub_series', 'theme'],
-  toyline: ['toyline', 'series', 'sub_series', 'theme'],
-  year: ['year', 'manufacturer', 'toyline', 'series', 'sub_series', 'theme']
+  manufacturer: ['manufacturer', 'toyline', 'series'],
+  toyline: ['toyline', 'series'],
+  year: ['year', 'manufacturer', 'toyline', 'series']
 }
 
 export function normalizeGroupValue(value) {
