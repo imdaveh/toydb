@@ -268,6 +268,36 @@ export default function EditToy(){
     }
   }
 
+  function normalizeCropSelection(start, current, aspect, canvasWidth, canvasHeight){
+    const rawLeft = Math.min(start.x, current.x)
+    const rawTop = Math.min(start.y, current.y)
+    const rawWidth = Math.abs(current.x - start.x)
+    const rawHeight = Math.abs(current.y - start.y)
+
+    if (!rawWidth || !rawHeight) {
+      return { x: 0, y: 0, width: 1, height: 1 }
+    }
+
+    let nextWidth = rawWidth
+    let nextHeight = rawHeight
+
+    if (rawWidth / rawHeight > aspect) {
+      nextWidth = rawHeight * aspect
+    } else {
+      nextHeight = rawWidth / aspect
+    }
+
+    const left = Math.min(Math.max(rawLeft + (rawWidth - nextWidth) / 2, 0), Math.max(0, canvasWidth - nextWidth))
+    const top = Math.min(Math.max(rawTop + (rawHeight - nextHeight) / 2, 0), Math.max(0, canvasHeight - nextHeight))
+
+    return {
+      x: Math.min(Math.max(left / canvasWidth, 0), 1),
+      y: Math.min(Math.max(top / canvasHeight, 0), 1),
+      width: Math.min(Math.max(nextWidth / canvasWidth, 0.05), 1),
+      height: Math.min(Math.max(nextHeight / canvasHeight, 0.05), 1)
+    }
+  }
+
   function handleEditorPointerDown(event){
     event.preventDefault()
     const point = getPointerPosition(event)
@@ -282,21 +312,14 @@ export default function EditToy(){
   }
 
   function handleEditorPointerUp(){
-    if (!dragRef.current || !dragRef.current.active) return
+    if (!dragRef.current || !dragRef.current.active || !canvasRef.current || !imageRef.current) return
     const { start, current } = dragRef.current
-    const x = Math.min(start.x, current.x) / canvasRef.current.width
-    const y = Math.min(start.y, current.y) / canvasRef.current.height
-    const width = Math.abs(current.x - start.x) / canvasRef.current.width
-    const height = Math.abs(current.y - start.y) / canvasRef.current.height
+    const aspect = imageRef.current.naturalWidth / imageRef.current.naturalHeight
+    const crop = normalizeCropSelection(start, current, aspect, canvasRef.current.width, canvasRef.current.height)
     dragRef.current.active = false
     setEditorState(current => ({
       ...current,
-      crop: {
-        x: Math.min(Math.max(x, 0), 1),
-        y: Math.min(Math.max(y, 0), 1),
-        width: Math.min(Math.max(width, 0.05), 1),
-        height: Math.min(Math.max(height, 0.05), 1)
-      }
+      crop
     }))
   }
 
@@ -406,7 +429,11 @@ export default function EditToy(){
                     <button type="button" onClick={() => setEditor(null)} className="inline-flex items-center justify-center rounded-lg border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-semibold text-toydb-navy shadow-sm transition hover:border-toydb-teal hover:bg-toydb-cream focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-toydb-teal focus-visible:ring-offset-2">Close</button>
                   </div>
                   <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_240px]">
-                    <div className="overflow-hidden rounded-xl border border-toydb-border bg-toydb-cream p-2">
+                    <div className="relative overflow-hidden rounded-xl border border-toydb-border bg-toydb-cream p-2">
+                      <div className="absolute left-4 top-4 z-10 inline-flex items-center gap-1.5 rounded-full border border-toydb-teal bg-toydb-white/90 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-toydb-teal-dark shadow-sm backdrop-blur-sm">
+                        <IconCrop />
+                        Crop
+                      </div>
                       <canvas
                         ref={canvasRef}
                         className="mx-auto max-h-[50vh] w-full cursor-crosshair rounded-lg bg-toydb-white object-contain touch-none sm:max-h-[60vh]"
@@ -462,6 +489,15 @@ function EditorActionButton({ title, ariaLabel, onClick, children }){
     >
       {children}
     </button>
+  )
+}
+
+function IconCrop(){
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-3.5 w-3.5 sm:h-4 sm:w-4">
+      <path d="M7 4v10a2 2 0 0 0 2 2h10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M17 20V9a2 2 0 0 0-2-2H5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   )
 }
 
