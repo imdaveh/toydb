@@ -116,6 +116,37 @@ test('prefills the add-toy form from the current tree path and available common 
   })
 })
 
+test('keeps the root-specific drill flow aligned with manufacturer and year entry points', () => {
+  const toys = [
+    { manufacturer: 'Hasbro', toyline: 'G.I. Joe', series: 'A Real American Hero', sub_series: 'Team', theme: 'Action', year: 1985 },
+    { manufacturer: 'Hasbro', toyline: 'G.I. Joe', series: 'A Real American Hero', sub_series: 'Night Force', theme: 'Action', year: 1985 },
+    { manufacturer: 'Takara', toyline: 'Transformers', series: 'Masterpiece', sub_series: 'Optimus Prime', theme: 'Sci-Fi', year: 2000 },
+    { manufacturer: 'Hasbro', toyline: 'Transformers', series: 'Generation 1', sub_series: 'Autobots', theme: 'Sci-Fi', year: 1984 }
+  ]
+
+  assert.equal(getNextField('sub_series'), 'theme')
+  assert.equal(getNextField('theme'), null)
+
+  const manufacturerDrill = resolveDrillGroups(toys, 'manufacturer')
+  assert.equal(manufacturerDrill.field, 'manufacturer')
+  assert.deepEqual(manufacturerDrill.groups.map(([label]) => label), ['Hasbro', 'Takara'])
+
+  const yearDrill = resolveDrillGroups(toys, 'year')
+  assert.equal(yearDrill.field, 'year')
+  assert.deepEqual(yearDrill.groups.map(([label]) => label), ['1984', '1985', '2000'])
+})
+
+test('prefers the next hierarchy stage when a node has a single value', () => {
+  const toys = [
+    { manufacturer: 'Hasbro', toyline: 'G.I. Joe', series: 'A Real American Hero', sub_series: 'Team', theme: 'Action', year: 1985 },
+    { manufacturer: 'Hasbro', toyline: 'G.I. Joe', series: 'The Mission', sub_series: 'Night Force', theme: 'Action', year: 1985 }
+  ]
+
+  const drillState = resolveDrillGroups(toys, 'toyline')
+  assert.equal(drillState.field, 'series')
+  assert.deepEqual(drillState.groups.map(([label]) => label), ['A Real American Hero', 'The Mission'])
+})
+
 test('preserves selectedGroupPath when serializing dashboard state for navigation', () => {
   const state = sanitizeDashboardViewState({
     grouping: 'manufacturer',

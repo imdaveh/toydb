@@ -2,8 +2,15 @@ export const NEXT_FIELD_BY_FIELD = {
   manufacturer: 'toyline',
   toyline: 'series',
   series: 'sub_series',
-  sub_series: 'year',
+  sub_series: 'theme',
+  theme: null,
   year: 'manufacturer'
+}
+
+export const FIELD_ORDER_BY_ROOT = {
+  manufacturer: ['manufacturer', 'toyline', 'series', 'sub_series', 'theme'],
+  toyline: ['toyline', 'series', 'sub_series', 'theme'],
+  year: ['year', 'manufacturer', 'toyline', 'series', 'sub_series', 'theme']
 }
 
 export function normalizeGroupValue(value) {
@@ -13,6 +20,11 @@ export function normalizeGroupValue(value) {
 
 export function getNextField(field) {
   return NEXT_FIELD_BY_FIELD[field] || null
+}
+
+export function getRootFieldOrder(field) {
+  if (!field || typeof field !== 'string') return []
+  return FIELD_ORDER_BY_ROOT[field] || []
 }
 
 export function groupToysByField(toys, field) {
@@ -133,29 +145,57 @@ export function sanitizeDashboardViewState(state = {}) {
 }
 
 export function resolveDrillGroups(toys, startingField) {
+  if (!startingField) {
+    return { field: null, groups: [], toys }
+  }
+
   let field = startingField
   let drillToys = toys
-  let groups = field ? groupToysByField(drillToys, field).filter(([label]) => label !== 'Uncategorized') : []
+  let groups = []
 
   while (field) {
-    const currentGroups = field ? groupToysByField(drillToys, field).filter(([label]) => label !== 'Uncategorized') : []
+    const currentGroups = groupToysByField(drillToys, field).filter(([label]) => label !== 'Uncategorized')
+
     if (currentGroups.length > 1) {
       groups = currentGroups
-      break
+      return { field, groups, toys: drillToys }
+    }
+
+    if (currentGroups.length === 1) {
+      const nextField = getNextField(field)
+      if (!nextField) {
+        groups = currentGroups
+        return { field, groups, toys: drillToys }
+      }
+
+      const nextGroups = groupToysByField(currentGroups[0][1], nextField).filter(([label]) => label !== 'Uncategorized')
+      if (nextGroups.length > 1) {
+        field = nextField
+        drillToys = currentGroups[0][1]
+        groups = nextGroups
+        return { field, groups, toys: drillToys }
+      }
+
+      drillToys = currentGroups[0][1]
+      field = nextField
+      continue
     }
 
     const nextField = getNextField(field)
     if (!nextField) break
 
-    const nestedGroups = groupToysByField(drillToys, nextField).filter(([label]) => label !== 'Uncategorized')
-    if (nestedGroups.length <= 1) break
+    const nextGroups = groupToysByField(drillToys, nextField).filter(([label]) => label !== 'Uncategorized')
+    if (nextGroups.length > 1) {
+      field = nextField
+      groups = nextGroups
+      return { field, groups, toys: drillToys }
+    }
 
-    field = nextField
-    drillToys = currentGroups.length === 1 ? currentGroups[0][1] : drillToys
-    groups = nestedGroups
+    break
   }
 
-  return { field, groups, toys: drillToys }
+  const finalGroups = field ? groupToysByField(drillToys, field).filter(([label]) => label !== 'Uncategorized') : []
+  return { field, groups: finalGroups, toys: drillToys }
 }
 
 export function addImplicitAncestorSteps(path = [], toys, targetField) {

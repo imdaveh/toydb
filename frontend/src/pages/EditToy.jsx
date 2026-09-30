@@ -78,6 +78,15 @@ export default function EditToy(){
 
   useEffect(() => {
     if (!editor) return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [editor])
+
+  useEffect(() => {
+    if (!editor) return
     const img = new Image()
     img.onload = () => {
       imageRef.current = img
@@ -387,52 +396,76 @@ export default function EditToy(){
       </div>
 
       {editor && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-4xl rounded-2xl bg-toydb-white p-4 shadow-xl">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-toydb-navy">Adjust photo</h3>
-              <button type="button" onClick={() => setEditor(null)} className="rounded-lg border border-toydb-border px-2 py-1 text-sm text-toydb-navy">Close</button>
-            </div>
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_240px]">
-              <div className="overflow-hidden rounded-xl border border-toydb-border bg-toydb-cream p-2">
-                <canvas
-                  ref={canvasRef}
-                  className="mx-auto max-h-[70vh] w-full cursor-crosshair rounded-lg bg-toydb-white object-contain touch-none"
-                  onPointerDown={handleEditorPointerDown}
-                  onPointerMove={handleEditorPointerMove}
-                  onPointerUp={handleEditorPointerUp}
-                  onPointerLeave={handleEditorPointerUp}
-                />
-              </div>
-              <div className="space-y-4">
-                <div className="rounded-xl border border-toydb-border bg-toydb-cream p-1.5">
-                  <div className="grid grid-cols-4 gap-1.5">
-                    <button type="button" title="Rotate left" aria-label="Rotate left" onClick={() => setEditorState(current => ({ ...current, rotation: (current.rotation - 90 + 360) % 360 }))} className="rounded-lg border border-toydb-border bg-toydb-white px-1 py-2 text-xl leading-none text-toydb-navy shadow-sm hover:border-toydb-teal hover:bg-toydb-teal/10">↺</button>
-                    <button type="button" title="Rotate right" aria-label="Rotate right" onClick={() => setEditorState(current => ({ ...current, rotation: (current.rotation + 90) % 360 }))} className="rounded-lg border border-toydb-border bg-toydb-white px-1 py-2 text-xl leading-none text-toydb-navy shadow-sm hover:border-toydb-teal hover:bg-toydb-teal/10">↻</button>
-                    <button type="button" title="Flip horizontal" aria-label="Flip horizontal" onClick={() => setEditorState(current => ({ ...current, flipX: !current.flipX }))} className="rounded-lg border border-toydb-border bg-toydb-white px-1 py-2 text-xl leading-none text-toydb-navy shadow-sm hover:border-toydb-teal hover:bg-toydb-teal/10">↔</button>
-                    <button type="button" title="Flip vertical" aria-label="Flip vertical" onClick={() => setEditorState(current => ({ ...current, flipY: !current.flipY }))} className="rounded-lg border border-toydb-border bg-toydb-white px-1 py-2 text-xl leading-none text-toydb-navy shadow-sm hover:border-toydb-teal hover:bg-toydb-teal/10">↕</button>
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-3 sm:p-4">
+          <div className="mx-auto flex min-h-full w-full max-w-4xl items-center justify-center py-4">
+            <div className="w-full overflow-hidden rounded-2xl bg-toydb-white shadow-xl">
+              <div className="max-h-[90vh] overflow-y-auto">
+                <div className="p-4">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <h3 className="text-lg font-bold text-toydb-navy">Adjust photo</h3>
+                    <button type="button" onClick={() => setEditor(null)} className="inline-flex items-center justify-center rounded-lg border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-semibold text-toydb-navy shadow-sm transition hover:border-toydb-teal hover:bg-toydb-cream focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-toydb-teal focus-visible:ring-offset-2">Close</button>
+                  </div>
+                  <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_240px]">
+                    <div className="overflow-hidden rounded-xl border border-toydb-border bg-toydb-cream p-2">
+                      <canvas
+                        ref={canvasRef}
+                        className="mx-auto max-h-[50vh] w-full cursor-crosshair rounded-lg bg-toydb-white object-contain touch-none sm:max-h-[60vh]"
+                        onPointerDown={handleEditorPointerDown}
+                        onPointerMove={handleEditorPointerMove}
+                        onPointerUp={handleEditorPointerUp}
+                        onPointerLeave={handleEditorPointerUp}
+                      />
+                    </div>
+                    <div className="space-y-4">
+                      <div className="rounded-xl border border-toydb-border bg-toydb-cream p-1.5">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <EditorActionButton title="Rotate left" ariaLabel="Rotate left" onClick={() => setEditorState(current => ({ ...current, rotation: (current.rotation - 90 + 360) % 360 }))}>↺</EditorActionButton>
+                          <span className="min-w-0 text-center text-[9px] font-bold uppercase tracking-[0.18em] text-toydb-slate">Rotate</span>
+                          <EditorActionButton title="Rotate right" ariaLabel="Rotate right" onClick={() => setEditorState(current => ({ ...current, rotation: (current.rotation + 90) % 360 }))}>↻</EditorActionButton>
+                        </div>
+                        <div className="mt-2 flex items-center justify-center gap-1.5">
+                          <EditorActionButton title="Flip horizontal" ariaLabel="Flip horizontal" onClick={() => setEditorState(current => ({ ...current, flipX: !current.flipX }))}>↔</EditorActionButton>
+                          <span className="min-w-0 text-center text-[9px] font-bold uppercase tracking-[0.18em] text-toydb-slate">Flip</span>
+                          <EditorActionButton title="Flip vertical" ariaLabel="Flip vertical" onClick={() => setEditorState(current => ({ ...current, flipY: !current.flipY }))}>↕</EditorActionButton>
+                        </div>
+                      </div>
+                      <label className="block text-sm font-semibold text-toydb-navy">
+                        Brightness
+                        <input type="range" min="0" max="200" value={editorState.brightness} onInput={event => setEditorState(current => ({ ...current, brightness: Number(event.target.value) }))} className="mt-1 w-full accent-toydb-teal" />
+                      </label>
+                      <label className="block text-sm font-semibold text-toydb-navy">
+                        Contrast
+                        <input type="range" min="0" max="200" value={editorState.contrast} onInput={event => setEditorState(current => ({ ...current, contrast: Number(event.target.value) }))} className="mt-1 w-full accent-toydb-teal" />
+                      </label>
+                      <label className="block text-sm font-semibold text-toydb-navy">
+                        Saturation
+                        <input type="range" min="0" max="200" value={editorState.saturation} onInput={event => setEditorState(current => ({ ...current, saturation: Number(event.target.value) }))} className="mt-1 w-full accent-toydb-teal" />
+                      </label>
+                      <button type="button" onClick={resetEditorState} className="w-full rounded-lg border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-semibold text-toydb-navy shadow-sm transition hover:border-toydb-teal hover:bg-toydb-cream focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-toydb-teal focus-visible:ring-offset-2">Reset</button>
+                      <button type="button" onClick={saveEditedPhoto} disabled={busy} className="w-full rounded-lg bg-toydb-teal px-3 py-2 text-sm font-semibold text-toydb-white shadow-sm transition hover:bg-toydb-teal-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-toydb-teal focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60">{busy ? 'Saving...' : 'Save edited photo'}</button>
+                    </div>
                   </div>
                 </div>
-                <label className="block text-sm font-semibold text-toydb-navy">
-                  Brightness
-                  <input type="range" min="0" max="200" value={editorState.brightness} onChange={event => setEditorState(current => ({ ...current, brightness: Number(event.target.value) }))} className="mt-1 w-full accent-toydb-teal" />
-                </label>
-                <label className="block text-sm font-semibold text-toydb-navy">
-                  Contrast
-                  <input type="range" min="0" max="200" value={editorState.contrast} onChange={event => setEditorState(current => ({ ...current, contrast: Number(event.target.value) }))} className="mt-1 w-full accent-toydb-teal" />
-                </label>
-                <label className="block text-sm font-semibold text-toydb-navy">
-                  Saturation
-                  <input type="range" min="0" max="200" value={editorState.saturation} onChange={event => setEditorState(current => ({ ...current, saturation: Number(event.target.value) }))} className="mt-1 w-full accent-toydb-teal" />
-                </label>
-                <button type="button" onClick={resetEditorState} className="w-full rounded-lg border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-semibold text-toydb-navy hover:border-toydb-teal hover:bg-toydb-cream">Reset</button>
-                <button type="button" onClick={saveEditedPhoto} disabled={busy} className="w-full rounded-lg bg-toydb-teal px-3 py-2 text-sm font-semibold text-toydb-white shadow-sm hover:bg-toydb-teal-dark disabled:cursor-not-allowed disabled:opacity-60">{busy ? 'Saving...' : 'Save edited photo'}</button>
               </div>
             </div>
           </div>
         </div>
       )}
     </div>
+  )
+}
+
+function EditorActionButton({ title, ariaLabel, onClick, children }){
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={ariaLabel}
+      onClick={onClick}
+      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-toydb-border bg-toydb-white text-lg leading-none text-toydb-navy shadow-sm transition hover:border-toydb-teal hover:bg-toydb-teal/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-toydb-teal focus-visible:ring-offset-2 sm:h-10 sm:w-10 sm:text-xl"
+    >
+      {children}
+    </button>
   )
 }
 
