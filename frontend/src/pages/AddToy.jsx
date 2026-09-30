@@ -1,17 +1,32 @@
 import React from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import ToyForm from '../components/ToyForm'
 
 export default function AddToy({ wishlist = false, hidden = false }){
   const navigate = useNavigate()
-  function onCreated(){
-    navigate(hidden ? '/hidden' : wishlist ? '/wishlist' : '/dashboard')
+  const location = useLocation()
+  const prefill = location.state?.prefill || {}
+
+  function getReturnTarget(){
+    const targetPath = hidden ? '/hidden' : wishlist ? '/wishlist' : '/dashboard'
+    const returnState = { ...(location.state || {}), refresh: Date.now() }
+    delete returnState.prefill
+    return { targetPath, returnState }
   }
+
+  function onCreated(){
+    const { targetPath, returnState } = getReturnTarget()
+    navigate(targetPath, { state: returnState })
+  }
+
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-bold">{hidden ? 'Add a Hidden Toy' : wishlist ? 'Add a Wishlist Toy' : 'Add a New Toy'}</h2>
       <div className="p-4 bg-toydb-white border border-toydb-border rounded-xl shadow-sm">
-        <ToyForm wishlist={wishlist} hidden={hidden} onCreated={onCreated} onCancel={() => navigate(hidden ? '/hidden' : wishlist ? '/wishlist' : '/dashboard')} />
+        <ToyForm wishlist={wishlist} hidden={hidden} initialValues={prefill} onCreated={onCreated} onCancel={() => {
+          const { targetPath, returnState } = getReturnTarget()
+          navigate(targetPath, { state: returnState })
+        }} />
       </div>
     </div>
   )

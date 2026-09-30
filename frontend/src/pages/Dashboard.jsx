@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import ToyCard from '../components/ToyCard'
+import { addImplicitAncestorSteps, buildAddToyPrefill, getNextField, getSelectedToysForPath, getUpdatedPathForSelection, groupToysByField, matchesPath, resolveDrillGroups, sanitizeDashboardViewState } from '../utils/collectionHierarchy.mjs'
 
 export default function Dashboard({ wishlist = false, forSale = false, hidden = false }){
   const [user, setUser] = useState(null)
@@ -8,6 +9,7 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
   const [toys, setToys] = useState([])
   const [grouping, setGrouping] = useState('toyline')
   const [selectedGroup, setSelectedGroup] = useState(null)
+  const [selectedGroupPath, setSelectedGroupPath] = useState([])
   const [filterOpen, setFilterOpen] = useState(false)
   const [filterField, setFilterField] = useState('manufacturer')
   const [filterValue, setFilterValue] = useState('')
@@ -25,9 +27,10 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
 
   useEffect(() => {
     if (!loc.state) return
-    const nextState = loc.state
+    const nextState = sanitizeDashboardViewState(loc.state)
     if (typeof nextState.grouping === 'string') setGrouping(nextState.grouping)
     if (nextState.selectedGroup !== undefined) setSelectedGroup(nextState.selectedGroup ?? null)
+    if (nextState.selectedGroupPath) setSelectedGroupPath(nextState.selectedGroupPath)
     if (nextState.filterOpen !== undefined) setFilterOpen(Boolean(nextState.filterOpen))
     if (nextState.filterField) setFilterField(nextState.filterField)
     if (nextState.filterValue !== undefined) setFilterValue(nextState.filterValue || '')
@@ -90,14 +93,19 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
     year: { label: 'Years', field: 'year' }
   }
   const activeGrouping = groupings[grouping]
-  const groups = toys.reduce((result, toy) => {
-    const value = toy[activeGrouping.field]
-    const name = value !== null && value !== undefined && String(value).trim() ? String(value).trim() : 'Uncategorized'
-    if (!result[name]) result[name] = []
-    result[name].push(toy)
-    return result
-  }, {})
-  const selectedToys = selectedGroup ? groups[selectedGroup] || [] : []
+  const groups = groupToysByField(toys, activeGrouping.field).filter(([label]) => label !== 'Uncategorized')
+  const activePathStep = selectedGroupPath[selectedGroupPath.length - 1] || null
+  const currentSelectionToys = getSelectedToysForPath(toys, selectedGroupPath)
+  const implicitDrillPath = addImplicitAncestorSteps(selectedGroupPath, currentSelectionToys, 'sub_series')
+  const drillScopeToys = getSelectedToysForPath(toys, implicitDrillPath)
+
+  const baseDrillField = implicitDrillPath.length
+    ? getNextField(implicitDrillPath[implicitDrillPath.length - 1].field)
+    : getNextField(grouping)
+  const drillState = resolveDrillGroups(drillScopeToys, baseDrillField)
+  const currentDrillField = drillState.field
+  const nextLevelGroups = drillState.groups
+  const selectedToys = selectedGroupPath.length ? currentSelectionToys : toys
   const filterableToys = (wishlist || forSale || hidden) ? toys : selectedToys
   const baseScopeToys = (wishlist || forSale || hidden) ? toys : (selectedGroup ? selectedToys : toys)
   const filterFields = {
@@ -179,8 +187,17 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
   }, baseScopeToys).filter(matchesSearch)
 
   const parseCurrencyValue = value => {
-    const parsed = Number.parseFloat(value)
-    return Number.isFinite(parsed) ? parsed : 0
+    const rawValue = value === null || value === undefined ? '' : String(value).trim()
+    if (!rawValue) return 0
+
+    const isNegative = rawValue.startsWith('(') && rawValue.endsWith(')')
+    const normalized = rawValue
+      .replace(/[\s$,%]/g, '')
+      .replace(/[()]/g, '')
+      .replace(/,/g, '')
+
+    const parsed = Number.parseFloat(normalized)
+    return Number.isFinite(parsed) ? (isNegative ? -parsed : parsed) : 0
   }
 
   const filteredCostTotal = filteredToys.reduce((total, toy) => total + parseCurrencyValue(toy.cost), 0)
@@ -198,7 +215,7 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
 
   useEffect(() => {
     setVisibleCount(24)
-  }, [searchQuery, grouping, selectedGroup, appliedFilters, wishlist, forSale, hidden])
+  }, [searchQuery, grouping, selectedGroup, selectedGroupPath, appliedFilters, wishlist, forSale, hidden])
 
   useEffect(() => {
     if (!loadMoreRef.current || !hasMoreToys) return
@@ -212,9 +229,10 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
     return () => observer.disconnect()
   }, [hasMoreToys, filteredToys.length])
 
-  const dashboardViewState = {
+  const dashboardViewState = sanitizeDashboardViewState({
     grouping,
     selectedGroup,
+    selectedGroupPath,
     filterOpen,
     filterField,
     filterValue,
@@ -226,7 +244,9 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
     wishlist,
     forSale,
     hidden
-  }
+  })
+  const addToyPrefill = buildAddToyPrefill(selectedGroupPath, selectedToys)
+  const addToyLinkState = { ...dashboardViewState, prefill: addToyPrefill }
 
   function resetFilterState(){
     setFilterField('manufacturer')
@@ -255,11 +275,26 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
   function changeGrouping(nextGrouping){
     setGrouping(nextGrouping)
     setSelectedGroup(null)
+    setSelectedGroupPath([])
     resetFilterState()
   }
 
-  function selectGroup(groupName){
+  function selectGroup(groupName, field = grouping){
     setSelectedGroup(groupName)
+    setSelectedGroupPath(previous => {
+      const currentSelection = getSelectedToysForPath(toys, previous)
+      const withImplicitAncestors = addImplicitAncestorSteps(previous, currentSelection, field)
+      return getUpdatedPathForSelection(withImplicitAncestors, field, groupName)
+    })
+    resetFilterState()
+  }
+
+  function goBackOneLevel(){
+    setSelectedGroupPath(previous => {
+      const nextPath = previous.slice(0, -1)
+      setSelectedGroup(nextPath[nextPath.length - 1]?.value || null)
+      return nextPath
+    })
     resetFilterState()
   }
 
@@ -302,7 +337,11 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
               <h3 className="text-2xl font-bold tracking-tight text-toydb-navy">{hidden ? 'Hidden Toys' : forSale ? 'For Sale' : 'My Wishlist'}</h3>
               <p className="mt-1 text-sm text-toydb-slate">{hidden ? 'These toys are intentionally hidden from your main collection view.' : forSale ? 'These toys are currently marked for sale.' : 'Keep track of the toys you want to find.'}</p>
             </div>
-            <Link to={hidden ? '/hidden/add' : forSale ? '/add' : '/wishlist/add'} className="inline-flex items-center justify-center rounded-lg bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white shadow-sm transition hover:bg-toydb-teal-dark sm:ml-auto">
+            <Link
+              to={hidden ? '/hidden/add' : forSale ? '/add' : '/wishlist/add'}
+              state={addToyLinkState}
+              className="inline-flex items-center justify-center rounded-lg bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white shadow-sm transition hover:bg-toydb-teal-dark sm:ml-auto"
+            >
               {hidden ? '+ Add Hidden Toy' : forSale ? '+ Add For Sale Toy' : '+ Add Wishlist Toy'}
             </Link>
           </section>
@@ -331,7 +370,7 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
             <h3 className="text-2xl font-bold tracking-tight text-toydb-navy">My Collection</h3>
             <p className="mt-1 text-sm text-toydb-slate">Keep every favorite in one place.</p>
           </div>
-          <Link to="/add" className="rounded-lg bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white shadow-sm hover:bg-toydb-teal-dark">+ Add Collection Toy</Link>
+          <Link to="/add" state={addToyLinkState} className="rounded-lg bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white shadow-sm hover:bg-toydb-teal-dark">+ Add Collection Toy</Link>
         </section>
       )}
 
@@ -395,16 +434,13 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
           {filteredToys.length === 0 && <div className="border border-dashed border-toydb-border p-4 text-sm text-toydb-slate">No toys match this search or filter in the current scope.</div>}
         </div>
       )}
-      {!loading && !wishlist && !forSale && !hidden && toys.length > 0 && !selectedGroup && (
+      {!loading && !wishlist && !forSale && !hidden && toys.length > 0 && selectedGroupPath.length === 0 && (
         <div className="grid gap-3">
-          {Object.entries(groups).sort(([a], [b]) => {
-            if (b === 'Uncategorized') return -1
-            return a.localeCompare(b)
-          }).map(([groupName, groupToys]) => (
+          {groups.map(([groupName, groupToys]) => (
             <button
               key={groupName}
               type="button"
-              onClick={() => selectGroup(groupName)}
+              onClick={() => selectGroup(groupName, activeGrouping.field)}
               className="group w-full flex items-center justify-between gap-4 border border-toydb-border border-l-4 border-l-toydb-teal bg-toydb-white p-4 text-left shadow-sm hover:-translate-y-0.5 hover:border-toydb-teal hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-toydb-teal"
             >
               <span className="font-bold text-toydb-navy group-hover:text-toydb-teal-dark">{groupName}</span>
@@ -413,13 +449,19 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
           ))}
         </div>
       )}
-      {!loading && !wishlist && !forSale && !hidden && selectedGroup && (
+      {!loading && !wishlist && !forSale && !hidden && selectedGroupPath.length > 0 && (
         <div className="space-y-4">
           <div className="-mt-3">
-            <button type="button" onClick={() => { setSelectedGroup(null); resetFilterState() }} className="block mb-4 text-base font-medium text-toydb-slate hover:text-toydb-teal-dark">
-              &larr; Back to {activeGrouping.label}
+            <button type="button" onClick={goBackOneLevel} className="block mb-4 text-base font-medium text-toydb-slate hover:text-toydb-teal-dark">
+              &larr; Back to {selectedGroupPath.length > 1 ? {
+                manufacturer: 'Manufacturers',
+                toyline: 'Toylines',
+                series: 'Series',
+                sub_series: 'Sub-Series',
+                year: 'Years'
+              }[selectedGroupPath[selectedGroupPath.length - 2].field] || selectedGroupPath[selectedGroupPath.length - 2].field : activeGrouping.label}
             </button>
-            <h4 className="text-xl font-bold text-toydb-navy">{selectedGroup} <span className="text-toydb-teal-dark">({filteredToys.length})</span></h4>
+            <h4 className="text-xl font-bold text-toydb-navy">{selectedGroupPath.map(step => step.value).join(' / ')} <span className="text-toydb-teal-dark">({selectedToys.length})</span></h4>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <button type="button" onClick={() => setSearchOpen(open => !open)} className="rounded-lg border border-toydb-teal bg-toydb-teal-pale px-3 py-2 text-sm font-medium text-toydb-teal-dark hover:bg-toydb-teal hover:text-toydb-white">
@@ -449,11 +491,29 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
             <label className="block text-sm font-medium text-toydb-navy">Value<select value={filterValue} onChange={event => setFilterValue(event.target.value)} className="mt-1 w-full p-2"><option value="">Select a value</option>{filterValues.map(value => <option key={value} value={value}>{value}</option>)}</select></label>
             <div className="flex gap-2"><button type="button" onClick={applyFilter} disabled={!filterValue} className="bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white hover:bg-toydb-teal-dark disabled:cursor-not-allowed disabled:opacity-60">Add filter</button>{appliedFilters.length > 0 && <button type="button" onClick={clearAppliedFilters} className="border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-medium text-toydb-navy hover:bg-toydb-cream">Clear all</button>}</div>
           </div>}
-          <div className="grid grid-cols-1 gap-4">
-            {visibleToys.map(t => <ToyCard key={t.id} toy={t} onUpdated={onUpdated} onDeleted={onDeleted} returnState={dashboardViewState} deleteLabel={forSale ? 'Sold' : 'Delete'} />)}
-          </div>
-          {hasMoreToys && <div ref={loadMoreRef} className="py-2 text-center text-xs font-medium uppercase tracking-wide text-toydb-slate">Loading more toys…</div>}
-          {filteredToys.length === 0 && <div className="border border-dashed border-toydb-border p-4 text-sm text-toydb-slate">No toys match this search or filter in the current scope.</div>}
+          {currentDrillField && nextLevelGroups.length > 1 ? (
+            <div className="grid gap-3">
+              {nextLevelGroups.map(([groupName, groupToys]) => (
+                <button
+                  key={`${groupName}-${currentDrillField}`}
+                  type="button"
+                  onClick={() => selectGroup(groupName, currentDrillField)}
+                  className="group w-full flex items-center justify-between gap-4 border border-toydb-border border-l-4 border-l-toydb-teal bg-toydb-white p-4 text-left shadow-sm hover:-translate-y-0.5 hover:border-toydb-teal hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-toydb-teal"
+                >
+                  <span className="font-bold text-toydb-navy group-hover:text-toydb-teal-dark">{groupName}</span>
+                  <span className="rounded-full bg-toydb-teal-pale px-3 py-1 text-sm font-medium text-toydb-teal-dark">{groupToys.length} {groupToys.length === 1 ? 'toy' : 'toys'} &rarr;</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 gap-4">
+                {visibleToys.map(t => <ToyCard key={t.id} toy={t} onUpdated={onUpdated} onDeleted={onDeleted} returnState={dashboardViewState} deleteLabel={forSale ? 'Sold' : 'Delete'} />)}
+              </div>
+              {hasMoreToys && <div ref={loadMoreRef} className="py-2 text-center text-xs font-medium uppercase tracking-wide text-toydb-slate">Loading more toys…</div>}
+              {filteredToys.length === 0 && <div className="border border-dashed border-toydb-border p-4 text-sm text-toydb-slate">No toys match this search or filter in the current scope.</div>}
+            </>
+          )}
         </div>
       )}
       <footer className="border-t border-toydb-border pt-4">

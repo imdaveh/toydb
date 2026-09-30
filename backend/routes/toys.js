@@ -226,14 +226,52 @@ function parseCsv(text) {
 
 const suggestionFields = ['manufacturer', 'toyline', 'series', 'sub_series', 'theme', 'source'];
 
-// Return the current user's previous values for form autocomplete.
+// Return the current user's previous values for form autocomplete, filtered by the active form context.
 router.get('/suggestions', authenticate, async (req, res) => {
   try {
+    const context = {
+      manufacturer: req.query.manufacturer || '',
+      toyline: req.query.toyline || '',
+      series: req.query.series || '',
+      sub_series: req.query.sub_series || '',
+      theme: req.query.theme || ''
+    };
+
     const suggestions = {};
     for (const field of suggestionFields) {
+      const filters = ['user_id = ?'];
+      const params = [req.user.id];
+
+      if (field === 'manufacturer') {
+        if (context.toyline) { filters.push('toyline = ?'); params.push(context.toyline); }
+        if (context.series) { filters.push('series = ?'); params.push(context.series); }
+        if (context.sub_series) { filters.push('sub_series = ?'); params.push(context.sub_series); }
+        if (context.theme) { filters.push('theme = ?'); params.push(context.theme); }
+      } else if (field === 'toyline') {
+        if (context.manufacturer) { filters.push('manufacturer = ?'); params.push(context.manufacturer); }
+        if (context.series) { filters.push('series = ?'); params.push(context.series); }
+        if (context.sub_series) { filters.push('sub_series = ?'); params.push(context.sub_series); }
+        if (context.theme) { filters.push('theme = ?'); params.push(context.theme); }
+      } else if (field === 'series') {
+        if (context.manufacturer) { filters.push('manufacturer = ?'); params.push(context.manufacturer); }
+        if (context.toyline) { filters.push('toyline = ?'); params.push(context.toyline); }
+        if (context.sub_series) { filters.push('sub_series = ?'); params.push(context.sub_series); }
+        if (context.theme) { filters.push('theme = ?'); params.push(context.theme); }
+      } else if (field === 'sub_series') {
+        if (context.manufacturer) { filters.push('manufacturer = ?'); params.push(context.manufacturer); }
+        if (context.toyline) { filters.push('toyline = ?'); params.push(context.toyline); }
+        if (context.series) { filters.push('series = ?'); params.push(context.series); }
+        if (context.theme) { filters.push('theme = ?'); params.push(context.theme); }
+      } else if (field === 'theme') {
+        if (context.manufacturer) { filters.push('manufacturer = ?'); params.push(context.manufacturer); }
+        if (context.toyline) { filters.push('toyline = ?'); params.push(context.toyline); }
+        if (context.series) { filters.push('series = ?'); params.push(context.series); }
+        if (context.sub_series) { filters.push('sub_series = ?'); params.push(context.sub_series); }
+      }
+
       const [rows] = await pool.query(
-        `SELECT DISTINCT ${field} AS value FROM toys WHERE user_id = ? AND ${field} IS NOT NULL AND TRIM(${field}) <> '' ORDER BY ${field} LIMIT 100`,
-        [req.user.id]
+        `SELECT DISTINCT ${field} AS value FROM toys WHERE ${filters.join(' AND ')} AND ${field} IS NOT NULL AND TRIM(${field}) <> '' ORDER BY ${field} LIMIT 100`,
+        params
       );
       suggestions[field] = rows.map(row => row.value);
     }
@@ -617,6 +655,48 @@ router.post('/:id/photos', authenticate, upload.array('photos', 8), async (req, 
   }
 });
 
+// Replace a photo with an edited version.
+router.put('/:toyId/photos/:photoId', authenticate, upload.single('photo'), async (req, res) => {
+  const userId = req.user.id;
+  const { toyId, photoId } = req.params;
+  if (!req.file) return res.status(400).json({ error: 'Photo is required' });
+
+  try {
+    const [toyRows] = await pool.query('SELECT id FROM toys WHERE id = ? AND user_id = ?', [toyId, userId]);
+    if (!toyRows.length) return res.status(404).json({ error: 'Toy not found' });
+
+    const [rows] = await pool.query('SELECT filename, original_name FROM toy_photos WHERE id = ? AND toy_id = ?', [photoId, toyId]);
+    if (!rows.length) return res.status(404).json({ error: 'Photo not found' });
+
+    const existing = rows[0];
+    const processed = await sharp(req.file.buffer, { limitInputPixels: 100000000 })
+      .rotate()
+      .resize(2000, 2000, { fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 82 })
+      .toBuffer();
+
+    const filename = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}.webp`;
+    const sourcePath = path.join(uploadsDir, filename);
+    const thumbFilename = filename.replace(/(\.[^.]+)$/, '-thumb.webp');
+    const thumbPath = path.join(uploadsDir, thumbFilename);
+
+    await fs.promises.writeFile(sourcePath, processed);
+    await createThumbnailFromBuffer(processed, thumbPath);
+
+    await pool.query('UPDATE toy_photos SET filename = ?, original_name = ? WHERE id = ? AND toy_id = ?', [filename, existing.original_name || req.file.originalname || 'photo.webp', photoId, toyId]);
+
+    const oldFilePath = path.join(uploadsDir, existing.filename);
+    try { fs.unlinkSync(oldFilePath); } catch (e) {}
+    const oldThumbPath = path.join(uploadsDir, existing.filename.replace(/(\.[^.]+)$/, '-thumb.webp'));
+    try { fs.unlinkSync(oldThumbPath); } catch (e) {}
+
+    res.json({ ok: true, filename, url: `/uploads/${filename}` });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Delete a photo
 router.delete('/:toyId/photos/:photoId', authenticate, async (req, res) => {
   const userId = req.user.id;
@@ -630,6 +710,8 @@ router.delete('/:toyId/photos/:photoId', authenticate, async (req, res) => {
     await pool.query('DELETE FROM toy_photos WHERE id = ? AND toy_id = ?', [photoId, toyId]);
     const fp = path.join(uploadsDir, filename);
     try { fs.unlinkSync(fp); } catch (e) {}
+    const thumbPath = path.join(uploadsDir, filename.replace(/(\.[^.]+)$/, '-thumb.webp'));
+    try { fs.unlinkSync(thumbPath); } catch (e) {}
     res.json({ ok: true });
   } catch (err) {
     console.error(err);

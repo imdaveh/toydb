@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import useToySuggestions from '../hooks/useToySuggestions'
 import useTags from '../hooks/useTags'
@@ -6,6 +6,15 @@ import AutocompleteInput from '../components/AutocompleteInput'
 import TagPicker from '../components/TagPicker'
 
 const conditions = ['Mint', 'Excellent', 'Good', 'Fair', 'Poor', 'Broken']
+const defaultEditorState = {
+  brightness: 100,
+  contrast: 100,
+  saturation: 100,
+  rotation: 0,
+  flipX: false,
+  flipY: false,
+  crop: { x: 0, y: 0, width: 1, height: 1 }
+}
 
 export default function EditToy(){
   const { id } = useParams()
@@ -17,6 +26,11 @@ export default function EditToy(){
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
+  const [editor, setEditor] = useState(null)
+  const [editorState, setEditorState] = useState(defaultEditorState)
+  const canvasRef = useRef(null)
+  const imageRef = useRef(null)
+  const dragRef = useRef(null)
   const suggestions = useToySuggestions()
   const allTags = useTags()
 
@@ -62,7 +76,72 @@ export default function EditToy(){
 
   useEffect(() => { load() }, [id])
 
-  function goBackToPreviousView(){
+  useEffect(() => {
+    if (!editor) return
+    const img = new Image()
+    img.onload = () => {
+      imageRef.current = img
+      setEditorState({ ...defaultEditorState, crop: { x: 0, y: 0, width: 1, height: 1 } })
+    }
+    img.src = import.meta.env.VITE_API_BASE + editor.imageUrl
+  }, [editor])
+
+  useEffect(() => {
+    if (!editor || !canvasRef.current || !imageRef.current) return
+
+    const canvas = canvasRef.current
+    const img = imageRef.current
+    const maxWidth = 760
+    const maxHeight = 760
+    const scale = Math.min(maxWidth / img.naturalWidth, maxHeight / img.naturalHeight)
+    const renderWidth = Math.max(1, Math.round(img.naturalWidth * scale))
+    const renderHeight = Math.max(1, Math.round(img.naturalHeight * scale))
+    canvas.width = renderWidth
+    canvas.height = renderHeight
+
+    const ctx = canvas.getContext('2d')
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+    const offscreen = document.createElement('canvas')
+    offscreen.width = img.naturalWidth
+    offscreen.height = img.naturalHeight
+    const offCtx = offscreen.getContext('2d')
+    offCtx.clearRect(0, 0, offscreen.width, offscreen.height)
+    offCtx.save()
+    offCtx.translate(offscreen.width / 2, offscreen.height / 2)
+    offCtx.rotate((editorState.rotation * Math.PI) / 180)
+    offCtx.scale(editorState.flipX ? -1 : 1, editorState.flipY ? -1 : 1)
+    offCtx.filter = `brightness(${editorState.brightness}%) contrast(${editorState.contrast}%) saturate(${editorState.saturation}%)`
+    offCtx.drawImage(img, -offscreen.width / 2, -offscreen.height / 2, offscreen.width, offscreen.height)
+    offCtx.restore()
+
+    const crop = editorState.crop
+    const sx = Math.max(0, Math.min(offscreen.width - 1, crop.x * offscreen.width))
+    const sy = Math.max(0, Math.min(offscreen.height - 1, crop.y * offscreen.height))
+    const sw = Math.max(1, Math.min(offscreen.width - sx, crop.width * offscreen.width))
+    const sh = Math.max(1, Math.min(offscreen.height - sy, crop.height * offscreen.height))
+
+    ctx.filter = 'none'
+    ctx.drawImage(offscreen, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height)
+
+    if (dragRef.current && dragRef.current.active) {
+      const start = dragRef.current.start
+      const current = dragRef.current.current
+      const left = Math.min(start.x, current.x)
+      const top = Math.min(start.y, current.y)
+      const width = Math.abs(current.x - start.x)
+      const height = Math.abs(current.y - start.y)
+      ctx.strokeStyle = '#ffffff'
+      ctx.lineWidth = 2
+      ctx.setLineDash([8, 6])
+      ctx.strokeRect(left, top, width, height)
+      ctx.fillStyle = 'rgba(255,255,255,0.15)'
+      ctx.fillRect(left, top, width, height)
+      ctx.setLineDash([])
+    }
+  }, [editor, editorState])
+
+  function getReturnNavigation(){
     const defaultPath = toy.hidden ? '/hidden' : (toy.is_wishlist ? '/wishlist' : '/dashboard')
     const returnTarget = location.state?.from || defaultPath
     const returnPath = typeof returnTarget === 'string' ? returnTarget : returnTarget?.pathname || defaultPath
@@ -70,6 +149,11 @@ export default function EditToy(){
       ? { refresh: Date.now() }
       : { ...(returnTarget?.state || {}), refresh: Date.now() }
 
+    return { returnPath, returnState }
+  }
+
+  function goBackToPreviousView(){
+    const { returnPath, returnState } = getReturnNavigation()
     navigate(returnPath, { state: returnState })
   }
 
@@ -118,7 +202,8 @@ export default function EditToy(){
       })
       const data = await response.json()
       if (!response.ok) { setError(data.error || 'Unable to move toy'); setBusy(false); return }
-      navigate('/dashboard', { state: { refresh: Date.now() } })
+      const { returnPath, returnState } = getReturnNavigation()
+      navigate(returnPath, { state: returnState })
     } catch (error) { setError('Server error') }
     setBusy(false)
   }
@@ -134,6 +219,80 @@ export default function EditToy(){
       await load()
     } catch (error) { setError('Server error') }
     setBusy(false)
+  }
+
+  async function saveEditedPhoto(){
+    if (!editor || !canvasRef.current) return
+    setBusy(true)
+    const token = await getToken()
+    if (!token) { setError('Not authenticated'); setBusy(false); return }
+    try {
+      const canvas = canvasRef.current
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', 0.82))
+      if (!blob) throw new Error('Unable to export photo')
+
+      const formData = new FormData()
+      formData.append('photo', blob, editor.name || 'photo.webp')
+      const response = await fetch(import.meta.env.VITE_API_BASE + `/toys/${id}/photos/${editor.photoId}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { Authorization: 'Bearer ' + token },
+        body: formData
+      })
+      const data = await response.json()
+      if (!response.ok) { setError(data.error || 'Photo update failed'); setBusy(false); return }
+      setEditor(null)
+      await load()
+    } catch (error) {
+      setError('Server error')
+    }
+    setBusy(false)
+  }
+
+  function getPointerPosition(event){
+    const canvas = canvasRef.current
+    if (!canvas) return { x: 0, y: 0 }
+    const rect = canvas.getBoundingClientRect()
+    return {
+      x: Math.min(Math.max((event.clientX - rect.left) / rect.width, 0), 1) * canvas.width,
+      y: Math.min(Math.max((event.clientY - rect.top) / rect.height, 0), 1) * canvas.height
+    }
+  }
+
+  function handleEditorPointerDown(event){
+    event.preventDefault()
+    const point = getPointerPosition(event)
+    dragRef.current = { active: true, start: point, current: point }
+  }
+
+  function handleEditorPointerMove(event){
+    if (!dragRef.current || !dragRef.current.active) return
+    event.preventDefault()
+    dragRef.current.current = getPointerPosition(event)
+    setEditorState(current => ({ ...current }))
+  }
+
+  function handleEditorPointerUp(){
+    if (!dragRef.current || !dragRef.current.active) return
+    const { start, current } = dragRef.current
+    const x = Math.min(start.x, current.x) / canvasRef.current.width
+    const y = Math.min(start.y, current.y) / canvasRef.current.height
+    const width = Math.abs(current.x - start.x) / canvasRef.current.width
+    const height = Math.abs(current.y - start.y) / canvasRef.current.height
+    dragRef.current.active = false
+    setEditorState(current => ({
+      ...current,
+      crop: {
+        x: Math.min(Math.max(x, 0), 1),
+        y: Math.min(Math.max(y, 0), 1),
+        width: Math.min(Math.max(width, 0.05), 1),
+        height: Math.min(Math.max(height, 0.05), 1)
+      }
+    }))
+  }
+
+  function resetEditorState(){
+    setEditorState({ ...defaultEditorState, crop: { x: 0, y: 0, width: 1, height: 1 } })
   }
 
   function updateField(field, value){ setForm(current => ({ ...current, [field]: value })) }
@@ -220,12 +379,59 @@ export default function EditToy(){
           <label className="block text-sm text-toydb-slate mb-1">Add Photos</label>
           <input type="file" multiple accept="image/*" onChange={event => setPhotosFiles(Array.from(event.target.files || []))} />
         </div>
-        <div><h4 className="font-semibold">Existing Photos</h4><div className="grid grid-cols-3 gap-2 mt-2">{toy.photos?.length ? toy.photos.map(photo => <div key={photo.id} className="relative w-24"><div className="w-24 h-24 bg-toydb-cream flex items-center justify-center overflow-hidden rounded-lg"><img src={import.meta.env.VITE_API_BASE + photo.url} alt={photo.name} className="object-contain w-full h-full" /></div><button onClick={() => deletePhoto(photo.id)} className="absolute top-1 right-1 bg-toydb-danger text-toydb-white text-xs px-2 py-0.5 rounded">Delete</button></div>) : <div className="text-sm text-toydb-slate">No photos</div>}</div></div>
+        <div><h4 className="font-semibold">Existing Photos</h4><div className="grid grid-cols-3 gap-2 mt-2">{toy.photos?.length ? toy.photos.map(photo => <div key={photo.id} className="relative w-24"><div className="w-24 h-24 bg-toydb-cream flex items-center justify-center overflow-hidden rounded-lg"><img src={import.meta.env.VITE_API_BASE + photo.url} alt={photo.name} className="object-contain w-full h-full" /></div><button type="button" onClick={() => setEditor({ photoId: photo.id, imageUrl: photo.url, name: photo.name })} className="absolute top-1 left-1 bg-toydb-teal text-toydb-white text-[10px] px-2 py-0.5 rounded">Edit</button><button type="button" onClick={() => deletePhoto(photo.id)} className="absolute top-1 right-1 bg-toydb-danger text-toydb-white text-[10px] px-2 py-0.5 rounded">Delete</button></div>) : <div className="text-sm text-toydb-slate">No photos</div>}</div></div>
         <div className="mt-3 space-y-2">
           <div className="grid grid-cols-3 gap-2"><button onClick={goBackToPreviousView} className="w-full border border-toydb-border bg-toydb-white p-2 text-toydb-navy rounded-lg">Cancel</button><button onClick={deleteToy} disabled={busy} className="w-full bg-toydb-danger p-2 text-toydb-white rounded-lg">Delete Toy</button><button onClick={save} disabled={busy} className="w-full bg-toydb-teal p-2 font-medium text-toydb-white rounded-lg">{busy ? 'Saving...' : 'Save Toy'}</button></div>
           {Boolean(toy.is_wishlist) && <button onClick={moveToCollection} disabled={busy} className="w-full rounded-lg bg-toydb-gold p-2 font-medium text-toydb-navy hover:bg-toydb-gold-dark hover:text-toydb-white disabled:cursor-not-allowed disabled:opacity-60">Move to My Collection</button>}
         </div>
       </div>
+
+      {editor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-4xl rounded-2xl bg-toydb-white p-4 shadow-xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-toydb-navy">Adjust photo</h3>
+              <button type="button" onClick={() => setEditor(null)} className="rounded-lg border border-toydb-border px-2 py-1 text-sm text-toydb-navy">Close</button>
+            </div>
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_240px]">
+              <div className="overflow-hidden rounded-xl border border-toydb-border bg-toydb-cream p-2">
+                <canvas
+                  ref={canvasRef}
+                  className="mx-auto max-h-[70vh] w-full cursor-crosshair rounded-lg bg-toydb-white object-contain touch-none"
+                  onPointerDown={handleEditorPointerDown}
+                  onPointerMove={handleEditorPointerMove}
+                  onPointerUp={handleEditorPointerUp}
+                  onPointerLeave={handleEditorPointerUp}
+                />
+              </div>
+              <div className="space-y-4">
+                <div className="rounded-xl border border-toydb-border bg-toydb-cream p-1.5">
+                  <div className="grid grid-cols-4 gap-1.5">
+                    <button type="button" title="Rotate left" aria-label="Rotate left" onClick={() => setEditorState(current => ({ ...current, rotation: (current.rotation - 90 + 360) % 360 }))} className="rounded-lg border border-toydb-border bg-toydb-white px-1 py-2 text-xl leading-none text-toydb-navy shadow-sm hover:border-toydb-teal hover:bg-toydb-teal/10">↺</button>
+                    <button type="button" title="Rotate right" aria-label="Rotate right" onClick={() => setEditorState(current => ({ ...current, rotation: (current.rotation + 90) % 360 }))} className="rounded-lg border border-toydb-border bg-toydb-white px-1 py-2 text-xl leading-none text-toydb-navy shadow-sm hover:border-toydb-teal hover:bg-toydb-teal/10">↻</button>
+                    <button type="button" title="Flip horizontal" aria-label="Flip horizontal" onClick={() => setEditorState(current => ({ ...current, flipX: !current.flipX }))} className="rounded-lg border border-toydb-border bg-toydb-white px-1 py-2 text-xl leading-none text-toydb-navy shadow-sm hover:border-toydb-teal hover:bg-toydb-teal/10">↔</button>
+                    <button type="button" title="Flip vertical" aria-label="Flip vertical" onClick={() => setEditorState(current => ({ ...current, flipY: !current.flipY }))} className="rounded-lg border border-toydb-border bg-toydb-white px-1 py-2 text-xl leading-none text-toydb-navy shadow-sm hover:border-toydb-teal hover:bg-toydb-teal/10">↕</button>
+                  </div>
+                </div>
+                <label className="block text-sm font-semibold text-toydb-navy">
+                  Brightness
+                  <input type="range" min="0" max="200" value={editorState.brightness} onChange={event => setEditorState(current => ({ ...current, brightness: Number(event.target.value) }))} className="mt-1 w-full accent-toydb-teal" />
+                </label>
+                <label className="block text-sm font-semibold text-toydb-navy">
+                  Contrast
+                  <input type="range" min="0" max="200" value={editorState.contrast} onChange={event => setEditorState(current => ({ ...current, contrast: Number(event.target.value) }))} className="mt-1 w-full accent-toydb-teal" />
+                </label>
+                <label className="block text-sm font-semibold text-toydb-navy">
+                  Saturation
+                  <input type="range" min="0" max="200" value={editorState.saturation} onChange={event => setEditorState(current => ({ ...current, saturation: Number(event.target.value) }))} className="mt-1 w-full accent-toydb-teal" />
+                </label>
+                <button type="button" onClick={resetEditorState} className="w-full rounded-lg border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-semibold text-toydb-navy hover:border-toydb-teal hover:bg-toydb-cream">Reset</button>
+                <button type="button" onClick={saveEditedPhoto} disabled={busy} className="w-full rounded-lg bg-toydb-teal px-3 py-2 text-sm font-semibold text-toydb-white shadow-sm hover:bg-toydb-teal-dark disabled:cursor-not-allowed disabled:opacity-60">{busy ? 'Saving...' : 'Save edited photo'}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

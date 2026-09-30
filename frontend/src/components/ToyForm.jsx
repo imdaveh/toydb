@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import useToySuggestions from '../hooks/useToySuggestions'
 import useTags from '../hooks/useTags'
 import AutocompleteInput from './AutocompleteInput'
@@ -6,13 +6,44 @@ import TagPicker from './TagPicker'
 
 const conditions = ['Mint', 'Excellent', 'Good', 'Fair', 'Poor', 'Broken']
 
-export default function ToyForm({ wishlist = false, hidden = false, onCreated, onCancel }){
-  const [form, setForm] = useState({ name: '', manufacturer: '', series: '', sub_series: '', theme: '', toyline: '', year: '', notes: '', condition: '', tagIds: [], accessories: [], cost: '', value: '', source: '', for_sale: false, hidden: hidden })
+function buildFormState(initialValues = {}, hiddenValue = false) {
+  return {
+    name: '',
+    manufacturer: initialValues.manufacturer || '',
+    series: initialValues.series || '',
+    sub_series: initialValues.sub_series || '',
+    theme: initialValues.theme || '',
+    toyline: initialValues.toyline || '',
+    year: initialValues.year !== undefined && initialValues.year !== null && initialValues.year !== '' ? String(initialValues.year) : '',
+    notes: '',
+    condition: '',
+    tagIds: [],
+    accessories: [],
+    cost: '',
+    value: '',
+    source: '',
+    for_sale: false,
+    hidden: Boolean(hiddenValue)
+  }
+}
+
+export default function ToyForm({ wishlist = false, hidden = false, initialValues = {}, onCreated, onCancel }){
+  const [form, setForm] = useState(() => buildFormState(initialValues, hidden))
   const [photos, setPhotos] = useState(null)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
-  const suggestions = useToySuggestions()
+  const suggestions = useToySuggestions({
+    manufacturer: form.manufacturer,
+    toyline: form.toyline,
+    series: form.series,
+    sub_series: form.sub_series,
+    theme: form.theme
+  })
   const allTags = useTags()
+
+  useEffect(() => {
+    setForm(buildFormState(initialValues, hidden))
+  }, [initialValues, hidden])
 
   function updateField(field, value){ setForm(current => ({ ...current, [field]: value })) }
 
@@ -37,7 +68,7 @@ export default function ToyForm({ wishlist = false, hidden = false, onCreated, o
     }))
   }
 
-  function reset(){ setForm({ name: '', manufacturer: '', series: '', sub_series: '', theme: '', toyline: '', year: '', notes: '', condition: '', tagIds: [], accessories: [], cost: '', value: '', source: '', for_sale: false, hidden: hidden }); setPhotos(null) }
+  function reset(){ setForm(buildFormState(initialValues, hidden)); setPhotos(null) }
 
   async function submit(event){
     event.preventDefault(); setError(null); setLoading(true)
