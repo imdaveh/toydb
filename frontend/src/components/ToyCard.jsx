@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
-export default function ToyCard({ toy, allowDelete = false, onDeleted, returnState = null, deleteLabel = 'Delete' }){
+export default function ToyCard({ toy, allowDelete = false, onDeleted, returnState = null, deleteLabel = 'Delete', readOnly = false }){
   const navigate = useNavigate()
   const location = useLocation()
   const [expanded, setExpanded] = useState(false)
@@ -136,7 +136,7 @@ export default function ToyCard({ toy, allowDelete = false, onDeleted, returnSta
                 return <div className="mt-1">{accessories.length > 0 ? 'None' : 'No accessories added yet'}</div>
               })()}
             </div>
-            {(toy.cost !== null && toy.cost !== undefined && toy.cost !== '') || (toy.value !== null && toy.value !== undefined && toy.value !== '') || toy.source ? (
+            {!readOnly && ((toy.cost !== null && toy.cost !== undefined && toy.cost !== '') || (toy.value !== null && toy.value !== undefined && toy.value !== '') || toy.source) ? (
               <div className="mt-2 text-xs text-toydb-slate">
                 <span className="font-semibold text-toydb-navy">Cost:</span> {toy.cost !== null && toy.cost !== undefined && toy.cost !== '' ? `$${parseFloat(toy.cost).toFixed(2)}` : '—'}
                 {' • '}
@@ -156,7 +156,9 @@ export default function ToyCard({ toy, allowDelete = false, onDeleted, returnSta
 
         {/* Actions row: own line at bottom, right-justified */}
         <div className="mt-auto flex justify-end items-center gap-2 text-sm">
-          { !expanded ? (
+          {readOnly ? (
+            <button onClick={()=>setExpanded(!expanded)} className="text-sm font-medium text-toydb-teal-dark hover:text-toydb-orange-dark">{expanded ? 'Less' : 'More'}</button>
+          ) : !expanded ? (
             <>
               <button onClick={()=>navigate('/toys/' + toy.id + '/edit', { state: { from: { pathname: location.pathname, state: returnState || {} } } })} className="text-sm font-medium text-toydb-teal-dark hover:text-toydb-orange-dark">Edit</button>
               {allowDelete && <><span className="text-toydb-border px-1">|</span><button type="button" onClick={deleteToy} disabled={deleting} className="text-sm font-medium text-toydb-danger hover:text-toydb-orange-dark disabled:cursor-not-allowed disabled:opacity-60">{actionButtonLabel}</button></>}

@@ -81,11 +81,12 @@ export function getUpdatedPathForSelection(path = [], field, value) {
 }
 
 export function buildAddToyPrefill(path = [], toys = [], activeFilters = []) {
+  const selectedToys = Array.isArray(toys) ? toys : []
   const pathValues = {}
   if (Array.isArray(path)) {
     for (const step of path) {
       if (!step || typeof step.field !== 'string') continue
-      if (['manufacturer', 'toyline', 'series', 'sub_series', 'year'].includes(step.field)) {
+      if (['manufacturer', 'toyline', 'series', 'sub_series', 'year', 'theme'].includes(step.field)) {
         pathValues[step.field] = step.value
       }
     }
@@ -100,24 +101,52 @@ export function buildAddToyPrefill(path = [], toys = [], activeFilters = []) {
     filterValues[filter.field] = value
   }
 
-  const fallbackFields = ['manufacturer', 'toyline', 'series', 'sub_series', 'theme', 'year']
+  const filteredScopeToys = selectedToys.filter(toy => {
+    return Object.entries(filterValues).every(([field, value]) => {
+      if (field === 'tag') return true
+      if (value === null || value === undefined || String(value).trim() === '') return true
+      return String(toy?.[field] ?? '') === String(value)
+    })
+  })
+  const scopeToys = filteredScopeToys.length ? filteredScopeToys : selectedToys
+
+  const fieldPreference = ['manufacturer', 'toyline', 'series', 'sub_series', 'year']
+  const groupedValues = {}
+
+  for (const field of fieldPreference) {
+    const rawValues = scopeToys
+      .map(toy => toy?.[field])
+      .filter(value => value !== null && value !== undefined && String(value).trim() !== '')
+
+    if (!rawValues.length) continue
+
+    const uniqueValues = [...new Set(rawValues.map(value => String(value)))]
+    if (uniqueValues.length === 1) {
+      groupedValues[field] = rawValues[0]
+    }
+  }
+
+  const explicitSelectionValues = {}
+  if (pathValues.toyline && !pathValues.manufacturer && groupedValues.manufacturer) {
+    explicitSelectionValues.manufacturer = groupedValues.manufacturer
+  }
+  if (pathValues.manufacturer && !pathValues.toyline && groupedValues.toyline) {
+    explicitSelectionValues.toyline = groupedValues.toyline
+  }
+
+  const fallbackFields = ['manufacturer', 'toyline', 'series', 'sub_series', 'year']
   const fallbackValues = {}
 
   for (const field of fallbackFields) {
     if (Object.prototype.hasOwnProperty.call(pathValues, field) || Object.prototype.hasOwnProperty.call(filterValues, field)) continue
+    if (Object.prototype.hasOwnProperty.call(explicitSelectionValues, field)) continue
 
-    const values = (Array.isArray(toys) ? toys : [])
-      .map(toy => toy?.[field])
-      .filter(value => value !== null && value !== undefined && String(value).trim() !== '')
-
-    if (!values.length) continue
-
-    const uniqueValues = [...new Set(values.map(value => String(value))) ]
-    if (uniqueValues.length === 1) fallbackValues[field] = values[0]
-    else if (field === 'theme' && values.length) fallbackValues[field] = values[0]
+    if (Object.prototype.hasOwnProperty.call(groupedValues, field)) {
+      fallbackValues[field] = groupedValues[field]
+    }
   }
 
-  const combined = { ...pathValues, ...filterValues, ...fallbackValues }
+  const combined = { ...pathValues, ...filterValues, ...explicitSelectionValues, ...fallbackValues }
   const prefill = {}
 
   for (const [field, value] of Object.entries(combined)) {
@@ -141,7 +170,6 @@ export function sanitizeDashboardViewState(state = {}) {
   nextState.filterValue = typeof nextState.filterValue === 'string' ? nextState.filterValue : ''
   nextState.searchOpen = Boolean(nextState.searchOpen)
   nextState.searchDraft = typeof nextState.searchDraft === 'string' ? nextState.searchDraft : ''
-  nextState.searchField = typeof nextState.searchField === 'string' ? nextState.searchField : 'all'
   nextState.searchQuery = typeof nextState.searchQuery === 'string' ? nextState.searchQuery : ''
   nextState.appliedFilters = Array.isArray(nextState.appliedFilters)
     ? nextState.appliedFilters.filter(filter => filter && typeof filter.field === 'string' && typeof filter.value !== 'undefined')

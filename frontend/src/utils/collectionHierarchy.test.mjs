@@ -111,7 +111,6 @@ test('prefills the add-toy form from the current tree path and available common 
     toyline: 'Star Wars',
     series: 'Empire Strikes Back',
     sub_series: 'Wave 1',
-    theme: 'Sci-Fi',
     year: 2024
   })
 })
@@ -136,6 +135,67 @@ test('adds active dashboard filters to the add-toy prefill', () => {
     sub_series: 'Team',
     theme: 'Action',
     year: 1985
+  })
+})
+
+test('prefills the current toyline and manufacturer while carrying active filters forward', () => {
+  const path = [{ field: 'toyline', value: 'G.I. Joe' }]
+  const toys = [
+    { manufacturer: 'Hasbro', toyline: 'G.I. Joe', series: 'A Real American Hero', sub_series: 'Team', theme: 'Action', year: 1985 },
+    { manufacturer: 'Hasbro', toyline: 'G.I. Joe', series: 'A Real American Hero', sub_series: 'Night Force', theme: 'Action', year: 1985 }
+  ]
+
+  const prefill = buildAddToyPrefill(path, toys, [
+    { field: 'series', value: 'A Real American Hero' },
+    { field: 'theme', value: 'Action' }
+  ])
+
+  assert.deepEqual(prefill, {
+    manufacturer: 'Hasbro',
+    toyline: 'G.I. Joe',
+    series: 'A Real American Hero',
+    theme: 'Action',
+    year: 1985
+  })
+})
+
+test('does not auto-populate a theme when no filters are active', () => {
+  const path = [{ field: 'toyline', value: 'G.I. Joe' }]
+  const toys = [
+    { manufacturer: 'Hasbro', toyline: 'G.I. Joe', series: 'A Real American Hero', sub_series: 'Team', theme: 'Action', year: 1985 },
+    { manufacturer: 'Hasbro', toyline: 'G.I. Joe', series: 'A Real American Hero', sub_series: 'Night Force', theme: 'Adventure', year: 1985 }
+  ]
+
+  const prefill = buildAddToyPrefill(path, toys, [])
+
+  assert.deepEqual(prefill, {
+    manufacturer: 'Hasbro',
+    toyline: 'G.I. Joe',
+    series: 'A Real American Hero',
+    year: 1985
+  })
+})
+
+test('uses the filtered scope to determine the active manufacturer when filters narrow the toyline', () => {
+  const path = [{ field: 'toyline', value: 'Transformers' }]
+  const toys = [
+    { manufacturer: 'Hasbro', toyline: 'Transformers', series: 'G1', sub_series: 'Autobots', theme: 'Action', year: 1984 },
+    { manufacturer: 'Takara', toyline: 'Transformers', series: 'G1', sub_series: 'Autobots', theme: 'Adventure', year: 1984 },
+    { manufacturer: 'Takara', toyline: 'Transformers', series: 'G2', sub_series: 'Autobots', theme: 'Action', year: 1985 }
+  ]
+
+  const prefill = buildAddToyPrefill(path, toys, [
+    { field: 'series', value: 'G1' },
+    { field: 'theme', value: 'Action' }
+  ])
+
+  assert.deepEqual(prefill, {
+    manufacturer: 'Hasbro',
+    toyline: 'Transformers',
+    series: 'G1',
+    sub_series: 'Autobots',
+    theme: 'Action',
+    year: 1984
   })
 })
 
@@ -188,7 +248,6 @@ test('preserves selectedGroupPath when serializing dashboard state for navigatio
     filterValue: 'Action',
     searchOpen: false,
     searchDraft: 'hero',
-    searchField: 'all',
     searchQuery: 'hero',
     appliedFilters: [{ field: 'condition', value: 'Mint' }],
     wishlist: false,

@@ -9,6 +9,10 @@ export default function Admin(){
   const [usersError, setUsersError] = useState(null)
   const [usersLoading, setUsersLoading] = useState(true)
   const [updatingId, setUpdatingId] = useState(null)
+  const [passwordChangeUserId, setPasswordChangeUserId] = useState(null)
+  const [passwordChange, setPasswordChange] = useState({ newPassword: '', confirmPassword: '' })
+  const [passwordChangeError, setPasswordChangeError] = useState(null)
+  const [passwordChangeBusy, setPasswordChangeBusy] = useState(false)
   const [tags, setTags] = useState([])
   const [tagsError, setTagsError] = useState(null)
   const [tagsLoading, setTagsLoading] = useState(true)
@@ -137,6 +141,37 @@ export default function Admin(){
     setUpdatingId(null)
   }
 
+  async function changeUserPassword(event){
+    event.preventDefault()
+    if (!passwordChangeUserId) return
+    setPasswordChangeBusy(true)
+    setPasswordChangeError(null)
+    try {
+      const token = await getToken()
+      if (!token) return navigate('/')
+      if (passwordChange.newPassword !== passwordChange.confirmPassword) {
+        setPasswordChangeError('Passwords do not match.')
+        setPasswordChangeBusy(false)
+        return
+      }
+      const response = await fetch(import.meta.env.VITE_API_BASE + '/admin/users/' + passwordChangeUserId + '/password', {
+        method: 'PATCH',
+        headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newPassword: passwordChange.newPassword, confirmPassword: passwordChange.confirmPassword })
+      })
+      const data = await response.json()
+      if (!response.ok) setPasswordChangeError(data.error || 'Unable to update password')
+      else {
+        setPasswordChangeUserId(null)
+        setPasswordChange({ newPassword: '', confirmPassword: '' })
+        setUsersError(null)
+      }
+    } catch (err) {
+      setPasswordChangeError('Unable to reach the ToyDB server.')
+    }
+    setPasswordChangeBusy(false)
+  }
+
   async function deleteUser(user){
     if (!window.confirm(`Delete ${user.email}? This also deletes their toys and cannot be undone.`)) return
     setUpdatingId(user.id)
@@ -241,9 +276,24 @@ export default function Admin(){
             {user.isAdmin ? 'Revoke Admin' : 'Make Admin'}
           </button>
         )}
+        <button type="button" disabled={isUpdating} onClick={() => setPasswordChangeUserId(user.id)} className="border border-toydb-teal px-3 py-2 text-sm font-medium text-toydb-teal-dark hover:bg-toydb-teal-pale">Change Password...</button>
         <button type="button" disabled={isUpdating} onClick={() => setEnabled(user, !user.enabled)} className={user.enabled ? 'border border-toydb-orange px-3 py-2 text-sm font-medium text-toydb-orange-dark hover:bg-toydb-orange-pale' : 'bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white hover:bg-toydb-teal-dark'}>{user.enabled ? 'Disable' : 'Approve'}</button>
         <button type="button" disabled={isUpdating} onClick={() => deleteUser(user)} className="border border-toydb-danger px-3 py-2 text-sm font-medium text-toydb-danger hover:bg-toydb-danger-pale">Delete</button>
       </div>
+      {passwordChangeUserId === user.id && (
+        <form onSubmit={changeUserPassword} className="mt-3 w-full rounded-lg border border-toydb-border bg-toydb-cream p-3">
+          <div className="mb-3 text-sm font-medium text-toydb-navy">Set a new password for {user.email}</div>
+          {passwordChangeError && <div className="mb-3 bg-toydb-danger-pale p-2 text-sm text-toydb-danger">{passwordChangeError}</div>}
+          <div className="grid gap-3 md:grid-cols-2">
+            <input type="password" value={passwordChange.newPassword} onChange={event => setPasswordChange(current => ({ ...current, newPassword: event.target.value }))} placeholder="New password" className="rounded-lg border border-toydb-border bg-toydb-white p-2" />
+            <input type="password" value={passwordChange.confirmPassword} onChange={event => setPasswordChange(current => ({ ...current, confirmPassword: event.target.value }))} placeholder="Confirm password" className="rounded-lg border border-toydb-border bg-toydb-white p-2" />
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="submit" disabled={passwordChangeBusy} className="rounded-lg bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white hover:bg-toydb-teal-dark disabled:cursor-not-allowed disabled:opacity-60">{passwordChangeBusy ? 'Saving...' : 'Save password'}</button>
+            <button type="button" onClick={() => { setPasswordChangeUserId(null); setPasswordChange({ newPassword: '', confirmPassword: '' }); setPasswordChangeError(null) }} className="rounded-lg border border-toydb-border px-3 py-2 text-sm font-medium text-toydb-navy hover:bg-toydb-white">Cancel</button>
+          </div>
+        </form>
+      )}
     </li>
   }
 

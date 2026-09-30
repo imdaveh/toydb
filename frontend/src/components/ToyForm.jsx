@@ -9,6 +9,7 @@ const conditions = ['Mint', 'Excellent', 'Good', 'Fair', 'Poor', 'Broken']
 function buildFormState(initialValues = {}, hiddenValue = false) {
   return {
     name: '',
+    copy: initialValues.copy !== undefined && initialValues.copy !== null && initialValues.copy !== '' ? String(initialValues.copy) : '1',
     manufacturer: initialValues.manufacturer || '',
     series: initialValues.series || '',
     sub_series: initialValues.sub_series || '',
@@ -38,7 +39,8 @@ export default function ToyForm({ wishlist = false, hidden = false, initialValue
     toyline: form.toyline,
     series: form.series,
     sub_series: form.sub_series,
-    theme: form.theme
+    theme: form.theme,
+    year: form.year
   })
   const allTags = useTags()
 
@@ -103,7 +105,10 @@ export default function ToyForm({ wishlist = false, hidden = false, initialValue
       <Field label="Series"><AutocompleteInput value={form.series} suggestions={suggestions.series} onChange={value => updateField('series', value)} /></Field>
       <Field label="Sub-series"><AutocompleteInput value={form.sub_series} suggestions={suggestions.sub_series} onChange={value => updateField('sub_series', value)} /></Field>
       <Field label="Theme"><AutocompleteInput value={form.theme} suggestions={suggestions.theme} onChange={value => updateField('theme', value)} /></Field>
-      <Field label="Condition"><Select value={form.condition} options={conditions} onChange={value => updateField('condition', value)} /></Field>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Condition" className="min-w-0"><Select value={form.condition} options={conditions} onChange={value => updateField('condition', value)} /></Field>
+        <Field label="Copy" className="min-w-0"><input value={form.copy} onChange={event => updateField('copy', event.target.value)} type="number" min="1" step="1" className="w-full p-2 border rounded" /></Field>
+      </div>
       <Field label="Tags"><TagPicker allTags={allTags} selectedTagIds={form.tagIds} onChange={value => updateField('tagIds', value)} /></Field>
       <div className="space-y-2">
         <div className="flex items-center justify-between">

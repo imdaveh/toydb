@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 
 export default function Register(){
   const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
   const [submitted, setSubmitted] = useState(false)
@@ -12,7 +13,7 @@ export default function Register(){
     e.preventDefault(); setError(null); setSubmitted(false)
     const res = await fetch(import.meta.env.VITE_API_BASE + '/auth/register', {
       method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
+      body: JSON.stringify({ email, username, password })
     })
     const data = await res.json()
     if (!res.ok) return setError(data.error || 'Register failed')
@@ -30,6 +31,7 @@ export default function Register(){
           </div>
         ) : <>
           <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email" className="w-full p-2 bg-toydb-white border border-toydb-border rounded-lg" />
+          <input value={username} onChange={e=>setUsername(e.target.value)} placeholder="Username (optional)" className="w-full p-2 bg-toydb-white border border-toydb-border rounded-lg" />
           <input value={password} onChange={e=>setPassword(e.target.value)} type="password" placeholder="Password (12+ chars, upper, lower, number, symbol)" className="w-full p-2 bg-toydb-white border border-toydb-border rounded-lg" />
           <button className="w-full bg-toydb-orange text-toydb-white font-medium p-2 rounded-lg hover:bg-toydb-orange-dark">Create account</button>
         </>}

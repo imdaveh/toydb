@@ -5,12 +5,16 @@ export default function App(){
   const navigate = useNavigate()
   const location = useLocation()
   const [user, setUser] = useState(null)
+  const [activeCollectionOwner, setActiveCollectionOwner] = useState(null)
+  const [accessibleCollections, setAccessibleCollections] = useState([])
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const isPublicPage = location.pathname === '/' || location.pathname === '/register'
 
   useEffect(() => {
     if (isPublicPage) {
       setUser(null)
+      setActiveCollectionOwner(null)
+      setAccessibleCollections([])
       return
     }
 
@@ -24,14 +28,28 @@ export default function App(){
           headers: { Authorization: 'Bearer ' + refreshData.accessToken }
         })
         const data = await response.json()
-        if (response.ok) setUser(data.user)
+        if (!response.ok) return
+
+        const nextUser = data.user
+        const owners = Array.isArray(nextUser?.accessibleCollections) ? nextUser.accessibleCollections : []
+        setUser(nextUser)
+        setAccessibleCollections(owners)
+        setActiveCollectionOwner(current => {
+          if (current && owners.some(owner => owner.id === current.id)) return current
+          return owners.find(owner => owner.id === nextUser.id) || owners[0] || { id: nextUser.id, username: nextUser.username || nextUser.email }
+        })
       } catch (error) {
         setUser(null)
+        setActiveCollectionOwner(null)
+        setAccessibleCollections([])
       }
     }
 
     loadUser()
-  }, [isPublicPage])
+  }, [isPublicPage, location.pathname])
+
+  const activeCollectionId = activeCollectionOwner?.id ?? user?.id ?? null
+  const isReadOnly = Boolean(user && activeCollectionOwner && activeCollectionOwner.id !== user.id)
 
   async function logout(){
     try{
@@ -40,8 +58,12 @@ export default function App(){
       // ignore errors
     }
     setUser(null)
+    setActiveCollectionOwner(null)
+    setAccessibleCollections([])
     navigate('/')
   }
+
+  const collectionOptions = accessibleCollections.length ? accessibleCollections : (user ? [{ id: user.id, username: user.username || user.email, email: user.email }] : [])
 
   return (
     <div className="min-h-screen bg-toydb-cream text-toydb-navy">
@@ -57,34 +79,36 @@ export default function App(){
                 </div>
               </div>
 
-              <nav className="flex items-center justify-end gap-3 text-xs sm:gap-4 md:hidden">
-                <Link to="/dashboard" className="px-1.5 py-2 text-sm font-semibold tracking-wide text-toydb-cream hover:text-toydb-orange-light">Collection</Link>
-                <Link to="/gallery" className="px-1.5 py-2 text-sm font-semibold tracking-wide text-toydb-cream hover:text-toydb-orange-light">Gallery</Link>
-                <Link to="/lists" className="px-1.5 py-2 text-sm font-semibold tracking-wide text-toydb-cream hover:text-toydb-orange-light">Lists</Link>
+              <div className="flex items-center gap-3">
+                <nav className="flex items-center justify-end gap-3 text-xs sm:gap-4 md:hidden">
+                  <Link to="/dashboard" className="px-1.5 py-2 text-sm font-semibold tracking-wide text-toydb-cream hover:text-toydb-orange-light">Collection</Link>
+                  <Link to="/gallery" className="px-1.5 py-2 text-sm font-semibold tracking-wide text-toydb-cream hover:text-toydb-orange-light">Gallery</Link>
+                  <Link to="/lists" className="px-1.5 py-2 text-sm font-semibold tracking-wide text-toydb-cream hover:text-toydb-orange-light">Lists</Link>
 
-                <button
-                  type="button"
-                  aria-label="Toggle navigation menu"
-                  aria-expanded={mobileMenuOpen}
-                  onClick={() => setMobileMenuOpen(value => !value)}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-toydb-navy-light bg-toydb-navy text-toydb-cream transition hover:border-toydb-orange-light hover:text-toydb-orange-light"
-                >
-                  <span className="flex flex-col items-center gap-1.5">
-                    <span className="block h-0.5 w-4 rounded-full bg-current" />
-                    <span className="block h-0.5 w-4 rounded-full bg-current" />
-                    <span className="block h-0.5 w-4 rounded-full bg-current" />
-                  </span>
-                </button>
-              </nav>
+                  <button
+                    type="button"
+                    aria-label="Toggle navigation menu"
+                    aria-expanded={mobileMenuOpen}
+                    onClick={() => setMobileMenuOpen(value => !value)}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-toydb-navy-light bg-toydb-navy text-toydb-cream transition hover:border-toydb-orange-light hover:text-toydb-orange-light"
+                  >
+                    <span className="flex flex-col items-center gap-1.5">
+                      <span className="block h-0.5 w-4 rounded-full bg-current" />
+                      <span className="block h-0.5 w-4 rounded-full bg-current" />
+                      <span className="block h-0.5 w-4 rounded-full bg-current" />
+                    </span>
+                  </button>
+                </nav>
 
-              <nav className="hidden items-center justify-end gap-3 text-sm md:flex">
-                <Link to="/dashboard" className="font-medium text-toydb-cream hover:text-toydb-orange-light">Collection</Link>
-                <Link to="/gallery" className="font-medium text-toydb-cream hover:text-toydb-orange-light">Gallery</Link>
-                <Link to="/lists" className="font-medium text-toydb-cream hover:text-toydb-orange-light">Lists</Link>
-                <Link to="/account" className="font-medium text-toydb-cream hover:text-toydb-orange-light">Account</Link>
-                {user?.isAdmin && <Link to="/admin" className="font-medium text-toydb-cream hover:text-toydb-orange-light">Admin</Link>}
-                <button onClick={logout} className="font-medium text-toydb-cream hover:text-toydb-orange-light">Logout</button>
-              </nav>
+                <nav className="hidden items-center justify-end gap-3 text-sm md:flex">
+                  <Link to="/dashboard" className="font-medium text-toydb-cream hover:text-toydb-orange-light">Collection</Link>
+                  <Link to="/gallery" className="font-medium text-toydb-cream hover:text-toydb-orange-light">Gallery</Link>
+                  <Link to="/lists" className="font-medium text-toydb-cream hover:text-toydb-orange-light">Lists</Link>
+                  <Link to="/account" className="font-medium text-toydb-cream hover:text-toydb-orange-light">Account</Link>
+                  {user?.isAdmin && <Link to="/admin" className="font-medium text-toydb-cream hover:text-toydb-orange-light">Admin</Link>}
+                  <button onClick={logout} className="font-medium text-toydb-cream hover:text-toydb-orange-light">Logout</button>
+                </nav>
+              </div>
             </div>
 
             {mobileMenuOpen && (
@@ -97,7 +121,7 @@ export default function App(){
           </header>
         ) : null }
         <main className={isPublicPage ? 'w-full rounded-2xl border border-toydb-border bg-toydb-white p-6 shadow-lg shadow-toydb-navy/10' : 'min-h-[calc(100vh-5.5rem)] bg-toydb-cream px-4 py-6 md:px-8 md:py-8'}>
-          <Outlet />
+          <Outlet context={{ activeCollectionOwner, setActiveCollectionOwner, accessibleCollections: collectionOptions, currentUser: user, isReadOnly }} />
         </main>
       </div>
     </div>

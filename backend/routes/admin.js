@@ -1,10 +1,12 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const bcrypt = require('bcrypt');
 const router = express.Router();
 const pool = require('../db');
 const uploadsDir = require('../uploadsPath');
 const { authenticate, requireAdmin } = require('../middleware/auth');
+const { validatePassword } = require('../passwordValidation');
 
 router.use(authenticate, requireAdmin);
 
@@ -86,6 +88,29 @@ router.patch('/users/:id/admin', async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error('Update admin privilege error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+router.patch('/users/:id/password', async (req, res) => {
+  const { newPassword, confirmPassword } = req.body || {};
+  if (typeof newPassword !== 'string' || typeof confirmPassword !== 'string') {
+    return res.status(400).json({ error: 'Both password fields are required' });
+  }
+  if (newPassword !== confirmPassword) {
+    return res.status(400).json({ error: 'Passwords do not match' });
+  }
+
+  const passwordError = validatePassword(newPassword);
+  if (passwordError) return res.status(400).json({ error: passwordError });
+
+  try {
+    const [result] = await pool.query('UPDATE users SET password_hash = ? WHERE id = ?', [await bcrypt.hash(newPassword, 10), req.params.id]);
+    if (!result.affectedRows) return res.status(404).json({ error: 'User not found' });
+    await pool.query('DELETE FROM refresh_tokens WHERE user_id = ?', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Update user password error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
+import { createBulkDeleteCriteria, createBulkDeleteResetState } from '../utils/bulkDeleteState.mjs'
+
 export default function Account(){
   const navigate = useNavigate()
   const [oldPassword, setOldPassword] = useState('')
@@ -9,11 +11,18 @@ export default function Account(){
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [shareTargetUserId, setShareTargetUserId] = useState('')
+  const [shareUsers, setShareUsers] = useState([])
+  const [sharedCollections, setSharedCollections] = useState([])
+  const [shareBusy, setShareBusy] = useState(false)
+  const [shareError, setShareError] = useState(null)
+  const [shareSuccess, setShareSuccess] = useState(null)
   const [importFile, setImportFile] = useState(null)
   const [importBusy, setImportBusy] = useState(false)
   const [importError, setImportError] = useState(null)
   const [importResult, setImportResult] = useState(null)
   const [templateBusy, setTemplateBusy] = useState(false)
+  const [exportCriteria, setExportCriteria] = useState([{ id: 1, field: 'toyline', value: '' }])
   const [bulkCriteria, setBulkCriteria] = useState([{ id: 1, field: 'toyline', value: '' }])
   const [bulkCollectionToys, setBulkCollectionToys] = useState([])
   const [bulkCollectionLoading, setBulkCollectionLoading] = useState(false)
@@ -22,6 +31,7 @@ export default function Account(){
   const [bulkDeleteSuccess, setBulkDeleteSuccess] = useState(null)
   const [bulkPreview, setBulkPreview] = useState(null)
   const [bulkPreviewBusy, setBulkPreviewBusy] = useState(false)
+  const [exportPreview, setExportPreview] = useState(null)
 
   async function getToken(){
     const refresh = await fetch(import.meta.env.VITE_API_BASE + '/auth/refresh', { method: 'POST', credentials: 'include' })
@@ -66,6 +76,79 @@ export default function Account(){
     setTemplateBusy(false)
   }
 
+  function getExportCriteriaPayload(){
+    return exportCriteria
+      .map(row => ({ field: row.field, value: row.value }))
+      .filter(row => row.field && String(row.value ?? '').trim())
+  }
+
+  function matchesExportCriterion(toy, criterion){
+    if (!criterion || !criterion.field || !criterion.value) return true
+    const value = String(criterion.value).trim()
+    if (criterion.field === 'year') return String(toy.year ?? '') === value
+    return String(toy[criterion.field] ?? '') === value
+  }
+
+  function getFilteredExportToys(criteria){
+    if (!criteria.length) return bulkCollectionToys
+    return bulkCollectionToys.filter(toy => criteria.every(criterion => matchesExportCriterion(toy, criterion)))
+  }
+
+  function getAllowedExportValues(field, index){
+    if (!bulkCollectionToys.length) return []
+    const priorCriteria = exportCriteria.slice(0, index).filter(row => row.field && String(row.value ?? '').trim())
+    const filteredToys = getFilteredExportToys(priorCriteria)
+    const values = [...new Set(filteredToys
+      .map(toy => toy[field])
+      .filter(value => value !== null && value !== undefined && String(value).trim())
+      .map(value => String(value).trim())
+    )].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+    return values
+  }
+
+  function updateExportRow(id, patch){
+    setExportCriteria(current => current.map(row => row.id === id ? { ...row, ...patch } : row))
+    setExportPreview(null)
+  }
+
+  function addExportRow(){
+    setExportCriteria(current => [...current, { id: Date.now() + Math.random(), field: 'toyline', value: '' }])
+    setExportPreview(null)
+  }
+
+  function resetExportCriteria(){
+    setExportCriteria([{ id: 1, field: 'toyline', value: '' }])
+    setExportPreview(null)
+  }
+
+  function previewExportMatches(){
+    const criteria = getExportCriteriaPayload()
+    const matches = getFilteredExportToys(criteria)
+    setExportPreview({ total: matches.length, matches: matches.slice(0, 50) })
+  }
+
+  async function exportCollectionCsv(){
+    const criteria = getExportCriteriaPayload()
+    setImportError(null); setTemplateBusy(true)
+    try {
+      const token = await getToken()
+      if (!token) { navigate('/'); return }
+      const url = new URL(import.meta.env.VITE_API_BASE + '/toys/export/csv')
+      if (criteria.length) url.searchParams.set('criteria', JSON.stringify(criteria))
+      const response = await fetch(url, { headers: { Authorization: 'Bearer ' + token } })
+      if (!response.ok) { const data = await response.json().catch(() => ({})); setImportError(data.error || 'Unable to export your collection'); setTemplateBusy(false); return }
+      const blob = await response.blob()
+      const link = document.createElement('a')
+      link.href = URL.createObjectURL(blob)
+      link.download = 'toydb-export.csv'
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(link.href)
+    } catch (error) { setImportError('Unable to reach the ToyDB server') }
+    setTemplateBusy(false)
+  }
+
   async function importCsv(event){
     event.preventDefault(); setImportError(null); setImportResult(null)
     if (!importFile) { setImportError('Choose a CSV file to import'); return }
@@ -85,31 +168,95 @@ export default function Account(){
     setImportBusy(false)
   }
 
-  useEffect(() => {
-    async function loadCollectionToys(){
-      setBulkCollectionLoading(true)
-      try {
-        const token = await getToken()
-        if (!token) {
-          setBulkDeleteError('Please log in to manage your collection.')
-          setBulkCollectionLoading(false)
-          return
-        }
-        const response = await fetch(import.meta.env.VITE_API_BASE + '/toys?wishlist=false', {
-          headers: { Authorization: 'Bearer ' + token }
-        })
-        const data = await response.json()
-        if (!response.ok) {
-          setBulkDeleteError(data.error || 'Unable to load collection values')
-          return
-        }
-        setBulkCollectionToys(data.toys || [])
-      } catch (error) {
-        setBulkDeleteError('Unable to reach the ToyDB server')
+  async function loadShareOptions(){
+    try {
+      const token = await getToken()
+      if (!token) return
+      const [usersResponse, sharesResponse] = await Promise.all([
+        fetch(import.meta.env.VITE_API_BASE + '/auth/users', { headers: { Authorization: 'Bearer ' + token } }),
+        fetch(import.meta.env.VITE_API_BASE + '/auth/collection-shares', { headers: { Authorization: 'Bearer ' + token } })
+      ])
+      const usersData = await usersResponse.json()
+      const sharesData = await sharesResponse.json()
+      if (usersResponse.ok) setShareUsers(usersData.users || [])
+      if (sharesResponse.ok) setSharedCollections(sharesData.shares || [])
+    } catch (error) {
+      setShareError('Unable to load users for sharing.')
+    }
+  }
+
+  async function addCollectionShare(event){
+    event.preventDefault(); setShareError(null); setShareSuccess(null)
+    if (!shareTargetUserId) { setShareError('Choose a user to share with.'); return }
+    setShareBusy(true)
+    try {
+      const token = await getToken()
+      if (!token) { navigate('/'); return }
+      const response = await fetch(import.meta.env.VITE_API_BASE + '/auth/collection-shares', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ viewerUserId: Number(shareTargetUserId) })
+      })
+      const data = await response.json()
+      if (!response.ok) { setShareError(data.error || 'Unable to share collection'); setShareBusy(false); return }
+      setShareSuccess(`Your collection is now shared with ${data.share.username}.`)
+      setShareTargetUserId('')
+      await loadShareOptions()
+    } catch (error) {
+      setShareError('Unable to reach the ToyDB server')
+    }
+    setShareBusy(false)
+  }
+
+  async function removeCollectionShare(viewerUserId){
+    setShareError(null); setShareSuccess(null)
+    try {
+      const token = await getToken()
+      if (!token) { navigate('/'); return }
+      const response = await fetch(import.meta.env.VITE_API_BASE + '/auth/collection-shares/' + viewerUserId, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: { Authorization: 'Bearer ' + token }
+      })
+      const data = await response.json()
+      if (!response.ok) { setShareError(data.error || 'Unable to remove access'); return }
+      setShareSuccess('Collection access removed.')
+      await loadShareOptions()
+    } catch (error) {
+      setShareError('Unable to reach the ToyDB server')
+    }
+  }
+
+  async function loadCollectionToys(){
+    setBulkCollectionLoading(true)
+    try {
+      const token = await getToken()
+      if (!token) {
+        setBulkDeleteError('Please log in to manage your collection.')
+        setBulkCollectionLoading(false)
+        return false
       }
+      const response = await fetch(import.meta.env.VITE_API_BASE + '/toys?wishlist=false', {
+        headers: { Authorization: 'Bearer ' + token }
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        setBulkDeleteError(data.error || 'Unable to load collection values')
+        return false
+      }
+      setBulkCollectionToys(data.toys || [])
+      return true
+    } catch (error) {
+      setBulkDeleteError('Unable to reach the ToyDB server')
+      return false
+    } finally {
       setBulkCollectionLoading(false)
     }
+  }
 
+  useEffect(() => {
+    loadShareOptions()
     loadCollectionToys()
   }, [navigate])
 
@@ -147,12 +294,13 @@ export default function Account(){
   }
 
   function resetBulkDeleteState(){
-    setBulkCriteria([{ id: 1, field: 'toyline', value: '' }])
-    setBulkPreview(null)
-    setBulkDeleteError(null)
-    setBulkDeleteSuccess(null)
-    setBulkDeleteBusy(false)
-    setBulkPreviewBusy(false)
+    const resetState = createBulkDeleteResetState()
+    setBulkCriteria(resetState.bulkCriteria)
+    setBulkPreview(resetState.bulkPreview)
+    setBulkDeleteError(resetState.bulkDeleteError)
+    setBulkDeleteSuccess(resetState.bulkDeleteSuccess)
+    setBulkDeleteBusy(resetState.bulkDeleteBusy)
+    setBulkPreviewBusy(resetState.bulkPreviewBusy)
   }
 
   function removeBulkRow(id){
@@ -228,9 +376,10 @@ export default function Account(){
         return
       }
       setBulkDeleteSuccess(`Deleted ${data.deleted} matching toy${data.deleted === 1 ? '' : 's'}.`)
-      setBulkCriteria([{ id: 1, field: 'toyline', value: '' }])
-      setBulkCollectionToys([])
-      setBulkCollectionLoading(false)
+      setBulkCriteria(createBulkDeleteCriteria())
+      setBulkPreview(null)
+      setBulkDeleteError(null)
+      await loadCollectionToys()
     } catch (error) {
       setBulkDeleteError('Unable to reach the ToyDB server')
     }
@@ -252,7 +401,33 @@ export default function Account(){
       </form>
 
       <div className="space-y-4 border border-toydb-border bg-toydb-white p-4 shadow-sm">
-        <div><h3 className="font-bold text-toydb-navy">Import Toys</h3><p className="mt-1 text-sm text-toydb-slate">Bulk add toys to your collection from a CSV file.</p></div>
+        <div><h3 className="font-bold text-toydb-navy">Share your collection</h3><p className="mt-1 text-sm text-toydb-slate">Give another user read-only access to your collection.</p></div>
+        {shareError && <div className="bg-toydb-danger-pale p-3 text-toydb-danger">{shareError}</div>}
+        {shareSuccess && <div className="bg-toydb-teal-pale p-3 text-toydb-teal-dark">{shareSuccess}</div>}
+        <form onSubmit={addCollectionShare} className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+          <Field label="Share with">
+            <select value={shareTargetUserId} onChange={event => setShareTargetUserId(event.target.value)} className="w-full rounded-lg border border-toydb-border p-2">
+              <option value="">Choose a user</option>
+              {shareUsers.map(user => (
+                <option key={user.id} value={user.id}>{user.username || user.email}</option>
+              ))}
+            </select>
+          </Field>
+          <button type="submit" disabled={shareBusy || !shareTargetUserId} className="rounded-lg bg-toydb-teal p-2 font-medium text-toydb-white hover:bg-toydb-teal-dark disabled:cursor-not-allowed disabled:opacity-60">{shareBusy ? 'Adding...' : 'Grant access'}</button>
+        </form>
+        <div className="space-y-2">
+          {sharedCollections.length === 0 && <div className="text-sm text-toydb-slate">No shared collection access yet.</div>}
+          {sharedCollections.map(share => (
+            <div key={share.viewerUserId} className="flex items-center justify-between rounded-lg border border-toydb-border bg-toydb-cream p-2 text-sm">
+              <span>{share.username || share.email}</span>
+              <button type="button" onClick={() => removeCollectionShare(share.viewerUserId)} className="text-toydb-danger hover:text-toydb-orange-dark">Remove</button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-4 border border-toydb-border bg-toydb-white p-4 shadow-sm">
+        <div><h3 className="font-bold text-toydb-navy">Import / Export Toys</h3></div>
         {importError && <div className="bg-toydb-danger-pale p-3 text-toydb-danger">{importError}</div>}
         {importResult && (
           <div className="bg-toydb-teal-pale p-3 text-toydb-teal-dark space-y-1">
@@ -264,15 +439,92 @@ export default function Account(){
             )}
           </div>
         )}
-        <button type="button" onClick={downloadTemplate} disabled={templateBusy} className="border border-toydb-border bg-toydb-white p-2 text-toydb-navy rounded-lg">{templateBusy ? 'Downloading...' : 'Download CSV template'}</button>
-        <p className="text-xs text-toydb-slate">
-          The template includes accessories support with <span className="font-semibold">accessories</span> and <span className="font-semibold">owned_accessories</span> columns.
-          Use a pipe, comma, or semicolon-separated list, for example: <span className="font-mono">Instruction Manual|Display Stand</span>.
-        </p>
-        <form onSubmit={importCsv} className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <input type="file" accept=".csv,text/csv" onChange={event => setImportFile(event.target.files?.[0] || null)} className="flex-1" />
-          <button type="submit" disabled={importBusy} className="bg-toydb-orange p-2 font-medium text-toydb-white rounded-lg hover:bg-toydb-orange-dark">{importBusy ? 'Importing...' : 'Import CSV'}</button>
-        </form>
+
+        <div className="space-y-3 rounded-lg border border-toydb-border bg-toydb-cream p-3">
+          <div className="text-sm text-toydb-slate">Bulk add toys to your collection from a CSV file.</div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={downloadTemplate} disabled={templateBusy} className="border border-toydb-border bg-toydb-white p-2 text-toydb-navy rounded-lg hover:bg-toydb-cream">{templateBusy ? 'Downloading...' : 'Download CSV Template'}</button>
+          </div>
+          <p className="text-xs text-toydb-slate">
+            The template includes accessories support with <span className="font-semibold">accessories</span> and <span className="font-semibold">owned_accessories</span> columns.
+            Use a pipe, comma, or semicolon-separated list, for example: <span className="font-mono">Instruction Manual|Display Stand</span>.
+          </p>
+        </div>
+
+        <div className="space-y-3 rounded-lg border border-toydb-border bg-toydb-cream p-3">
+          <div className="text-sm text-toydb-slate">Export all or part of your collection to a CSV file to edit and re-import.</div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={exportCollectionCsv} disabled={templateBusy} className="bg-toydb-teal p-2 font-medium text-toydb-white rounded-lg hover:bg-toydb-teal-dark disabled:cursor-not-allowed disabled:opacity-60">{templateBusy ? 'Exporting...' : 'Export Collection CSV'}</button>
+          </div>
+          <div className="space-y-3 rounded-lg border border-toydb-border bg-toydb-white p-3">
+            <div className="text-sm font-medium text-toydb-navy">Optional export filters</div>
+            {exportCriteria.map((row, index) => {
+              const values = getAllowedExportValues(row.field, index)
+              const safeValue = values.includes(row.value) ? row.value : ''
+              const rowCriteria = exportCriteria.slice(0, index + 1).filter(item => item.field && String(item.value ?? '').trim())
+              const remainingMatches = getFilteredExportToys(rowCriteria).length
+              return (
+                <div key={row.id} className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+                  <Field label={`Field ${index + 1}`}>
+                    <select value={row.field} onChange={event => updateExportRow(row.id, { field: event.target.value, value: '' })} className="w-full rounded-lg border border-toydb-border p-2">
+                      <option value="toyline">Toyline</option>
+                      <option value="manufacturer">Manufacturer</option>
+                      <option value="series">Series</option>
+                      <option value="sub_series">Sub-Series</option>
+                      <option value="theme">Theme</option>
+                      <option value="condition">Condition</option>
+                      <option value="year">Year</option>
+                    </select>
+                  </Field>
+                  <Field label="Value">
+                    <select value={safeValue} onChange={event => updateExportRow(row.id, { value: event.target.value })} className="w-full rounded-lg border border-toydb-border p-2" disabled={!values.length || bulkCollectionLoading}>
+                      <option value="">Select a value</option>
+                      {values.map(value => <option key={String(value)} value={value}>{String(value)}</option>)}
+                    </select>
+                  </Field>
+                  <button type="button" onClick={() => setExportCriteria(current => current.length > 1 ? current.filter(item => item.id !== row.id) : current)} className="rounded-lg border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-medium text-toydb-navy">Remove</button>
+                  <div className="sm:col-span-3 text-xs text-toydb-slate">
+                    {rowCriteria.length ? `${remainingMatches} record${remainingMatches === 1 ? '' : 's'} in this scope` : 'Choose a value to narrow the selected records'}
+                  </div>
+                </div>
+              )
+            })}
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={previewExportMatches} className="rounded-lg border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-medium text-toydb-navy hover:bg-toydb-cream">
+                Preview export
+              </button>
+              <button type="button" onClick={addExportRow} className="rounded-lg border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-medium text-toydb-navy hover:bg-toydb-cream">
+                + Add another filter
+              </button>
+              <button type="button" onClick={resetExportCriteria} className="rounded-lg border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-medium text-toydb-navy hover:bg-toydb-cream">
+                Reset
+              </button>
+            </div>
+            {exportPreview && (
+              <div className="rounded-lg border border-toydb-border bg-toydb-cream p-3">
+                <div className="mb-2 text-sm font-medium text-toydb-navy">{exportPreview.total} record{exportPreview.total === 1 ? '' : 's'} will be exported</div>
+                <ul className="max-h-52 space-y-1 overflow-auto text-sm text-toydb-slate">
+                  {exportPreview.matches.length === 0 && <li>No matches found.</li>}
+                  {exportPreview.matches.map(toy => (
+                    <li key={toy.id} className="border-b border-toydb-border pb-1 last:border-b-0 last:pb-0">
+                      {toy.name || 'Unnamed toy'}
+                      {toy.manufacturer ? ` • ${toy.manufacturer}` : ''}
+                      {toy.year ? ` • ${toy.year}` : ''}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-3 rounded-lg border border-toydb-border bg-toydb-cream p-3">
+          <div className="text-sm text-toydb-slate">Import toys from CSV File.</div>
+          <form onSubmit={importCsv} className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <input type="file" accept=".csv,text/csv" onChange={event => setImportFile(event.target.files?.[0] || null)} className="flex-1" />
+            <button type="submit" disabled={importBusy} className="bg-toydb-orange p-2 font-medium text-toydb-white rounded-lg hover:bg-toydb-orange-dark">{importBusy ? 'Importing...' : 'Import CSV'}</button>
+          </form>
+        </div>
       </div>
 
       <div className="space-y-4 border border-toydb-danger/60 bg-toydb-white p-4 shadow-sm">

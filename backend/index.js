@@ -9,6 +9,7 @@ const galleryRoutes = require('./routes/gallery');
 const adminRoutes = require('./routes/admin');
 const tagsRoutes = require('./routes/tags');
 const pool = require('./db');
+const { buildAccessibleCollections } = require('./collectionAccess');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -74,10 +75,31 @@ app.get('/health', async (req, res) => {
 
 app.get('/dashboard', require('./middleware/auth').authenticate, async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT id, email, is_admin, created_at FROM users WHERE id = ?', [req.user.id]);
+    const [rows] = await pool.query('SELECT id, email, username, is_admin, created_at FROM users WHERE id = ?', [req.user.id]);
     if (!rows.length) return res.status(404).json({ error: 'User not found' });
     const user = rows[0];
-    res.json({ user: { id: user.id, email: user.email, isAdmin: Boolean(user.is_admin), createdAt: user.created_at } });
+    const [sharedRows] = await pool.query('SELECT owner_user_id FROM collection_shares WHERE viewer_user_id = ?', [req.user.id]);
+    const sharedOwnerIds = new Set(sharedRows.map(row => Number(row.owner_user_id)));
+
+    let ownerQuery = 'SELECT id, email, username, is_admin, created_at FROM users WHERE id = ?';
+    const ownerParams = [req.user.id];
+    if (sharedOwnerIds.size > 0) {
+      ownerQuery += ' OR id IN (?)';
+      ownerParams.push([...sharedOwnerIds]);
+    }
+
+    const [ownerRows] = await pool.query(ownerQuery, ownerParams);
+
+    res.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username || user.email,
+        isAdmin: Boolean(user.is_admin),
+        createdAt: user.created_at,
+        accessibleCollections: buildAccessibleCollections(user, ownerRows, sharedOwnerIds)
+      }
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useOutletContext } from 'react-router-dom'
 import ToyCard from '../components/ToyCard'
 import { addImplicitAncestorSteps, buildAddToyPrefill, getNextField, getSelectedToysForPath, getUpdatedPathForSelection, groupToysByField, matchesPath, resolveDrillGroups, sanitizeDashboardViewState } from '../utils/collectionHierarchy.mjs'
 
@@ -15,7 +15,6 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
   const [filterValue, setFilterValue] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchDraft, setSearchDraft] = useState('')
-  const [searchField, setSearchField] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [appliedFilters, setAppliedFilters] = useState([])
   const [loading, setLoading] = useState(true)
@@ -23,7 +22,11 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
   const loadMoreRef = useRef(null)
   const loc = useLocation()
   const navigate = useNavigate()
+  const outletContext = useOutletContext?.() || {}
+  const { activeCollectionOwner, currentUser, isReadOnly, accessibleCollections, setActiveCollectionOwner } = outletContext
   const accessToken = loc.state?.accessToken || null
+  const hasSharedCollections = (accessibleCollections || []).some(option => String(option.id) !== String(currentUser?.id ?? ''))
+  const showCollectionSwitcher = Array.isArray(accessibleCollections) && accessibleCollections.length > 1 && hasSharedCollections
 
   useEffect(() => {
     if (!loc.state) return
@@ -36,7 +39,6 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
     if (nextState.filterValue !== undefined) setFilterValue(nextState.filterValue || '')
     if (nextState.searchOpen !== undefined) setSearchOpen(Boolean(nextState.searchOpen))
     if (nextState.searchDraft !== undefined) setSearchDraft(nextState.searchDraft || '')
-    if (nextState.searchField) setSearchField(nextState.searchField)
     if (nextState.searchQuery !== undefined) setSearchQuery(nextState.searchQuery || '')
     if (nextState.appliedFilters) setAppliedFilters(nextState.appliedFilters)
   }, [loc.state])
@@ -55,10 +57,12 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
       return
     }
     try{
+      const targetOwnerId = activeCollectionOwner?.id || currentUser?.id || null
       const listQuery = hidden ? '?hidden=true' : forSale ? '?for_sale=true' : wishlist ? '?wishlist=true' : ''
+      const ownerQuery = targetOwnerId ? (listQuery ? '&ownerId=' + targetOwnerId : '?ownerId=' + targetOwnerId) : ''
       const [uRes, tRes] = await Promise.all([
         fetch(import.meta.env.VITE_API_BASE + '/dashboard', { headers: { Authorization: 'Bearer ' + token } }),
-        fetch(import.meta.env.VITE_API_BASE + '/toys' + listQuery, { headers: { Authorization: 'Bearer ' + token } })
+        fetch(import.meta.env.VITE_API_BASE + '/toys' + listQuery + ownerQuery, { headers: { Authorization: 'Bearer ' + token } })
       ])
       const uData = await uRes.json()
       if (!uRes.ok) { setError(uData.error || 'Failed to load user'); setLoading(false); return }
@@ -79,7 +83,7 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
     } catch (err){ setError('Server error'); setLoading(false) }
   }
 
-  useEffect(()=>{ loadUserAndToys() }, [])
+  useEffect(()=>{ loadUserAndToys() }, [activeCollectionOwner?.id, currentUser?.id])
   useEffect(()=>{
     if (loc?.state?.refresh) loadUserAndToys()
   }, [loc?.state?.refresh])
@@ -109,6 +113,12 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
   const selectedToys = selectedGroupPath.length ? currentSelectionToys : toys
   const filterableToys = (wishlist || forSale || hidden) ? toys : selectedToys
   const baseScopeToys = (wishlist || forSale || hidden) ? toys : (selectedGroup ? selectedToys : toys)
+  const filterSuggestionScope = appliedFilters.reduce((result, activeFilter) => {
+    if (activeFilter.field === 'tag') {
+      return result.filter(toy => (toy.tags || []).some(tag => tag.name === activeFilter.value))
+    }
+    return result.filter(toy => String(toy[activeFilter.field] || '') === activeFilter.value)
+  }, filterableToys)
   const filterFields = {
     tag: 'Tag',
     condition: 'Condition',
@@ -119,21 +129,9 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
     sub_series: 'Sub-Series',
     theme: 'Theme'
   }
-  const searchFields = {
-    all: 'All fields',
-    name: 'Name',
-    manufacturer: 'Manufacturer',
-    toyline: 'Toyline',
-    series: 'Series',
-    sub_series: 'Sub-Series',
-    theme: 'Theme',
-    condition: 'Condition',
-    notes: 'Notes',
-    tag: 'Tag'
-  }
   const filterValues = filterField === 'tag'
-    ? [...new Set(filterableToys.flatMap(toy => (toy.tags || []).map(tag => tag.name)))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
-    : [...new Set(filterableToys.map(toy => toy[filterField]).filter(value => value !== null && value !== undefined && String(value).trim()).map(String))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+    ? [...new Set(filterSuggestionScope.flatMap(toy => (toy.tags || []).map(tag => tag.name)))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+    : [...new Set(filterSuggestionScope.map(toy => toy[filterField]).filter(value => value !== null && value !== undefined && String(value).trim()).map(String))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
 
   function sortToyRecords(left, right){
     const yearLeft = left?.year === null || left?.year === undefined || left?.year === '' ? Number.MAX_SAFE_INTEGER : Number(left.year)
@@ -159,24 +157,17 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
     const query = searchQuery.trim().toLowerCase()
     if (!query) return true
 
-    if (searchField === 'tag') {
-      return (toy.tags || []).some(tag => String(tag?.name || '').toLowerCase().includes(query))
-    }
-
-    const candidateValues = []
-    if (searchField === 'all') {
-      candidateValues.push(String(toy.name || ''))
-      candidateValues.push(String(toy.manufacturer || ''))
-      candidateValues.push(String(toy.toyline || ''))
-      candidateValues.push(String(toy.series || ''))
-      candidateValues.push(String(toy.sub_series || ''))
-      candidateValues.push(String(toy.theme || ''))
-      candidateValues.push(String(toy.condition || ''))
-      candidateValues.push(String(toy.notes || ''))
-      candidateValues.push(...(toy.tags || []).map(tag => String(tag?.name || '')))
-    } else {
-      candidateValues.push(String(toy[searchField] || ''))
-    }
+    const candidateValues = [
+      String(toy.name || ''),
+      String(toy.manufacturer || ''),
+      String(toy.toyline || ''),
+      String(toy.series || ''),
+      String(toy.sub_series || ''),
+      String(toy.theme || ''),
+      String(toy.condition || ''),
+      String(toy.notes || ''),
+      ...(toy.tags || []).map(tag => String(tag?.name || ''))
+    ]
 
     return candidateValues.some(value => value.toLowerCase().includes(query))
   }
@@ -214,22 +205,37 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
 
   const visibleToys = filteredToys.slice(0, visibleCount)
   const hasMoreToys = visibleCount < filteredToys.length
+  const breadcrumbFilteredCount = (searchQuery || appliedFilters.length > 0) ? filteredToys.length : null
+
+  function loadMoreToys(){
+    if (!hasMoreToys) return
+    setVisibleCount(current => Math.min(current + 12, filteredToys.length))
+  }
 
   useEffect(() => {
     setVisibleCount(24)
   }, [searchQuery, grouping, selectedGroup, selectedGroupPath, appliedFilters, wishlist, forSale, hidden])
 
   useEffect(() => {
-    if (!loadMoreRef.current || !hasMoreToys) return
-    const node = loadMoreRef.current
-    const observer = new IntersectionObserver((entries) => {
-      if (entries[0]?.isIntersecting) {
-        setVisibleCount(current => Math.min(current + 12, filteredToys.length))
+    if (!hasMoreToys || visibleCount >= filteredToys.length) return
+
+    const handleScroll = () => {
+      const scrollPosition = window.innerHeight + window.scrollY
+      const pageHeight = document.documentElement.scrollHeight
+      if (scrollPosition >= pageHeight - 400) {
+        loadMoreToys()
       }
-    }, { rootMargin: '250px' })
-    observer.observe(node)
-    return () => observer.disconnect()
-  }, [hasMoreToys, filteredToys.length])
+    }
+
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    window.addEventListener('resize', handleScroll)
+    handleScroll()
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll)
+      window.removeEventListener('resize', handleScroll)
+    }
+  }, [hasMoreToys, visibleCount, filteredToys.length])
 
   const dashboardViewState = sanitizeDashboardViewState({
     grouping,
@@ -240,14 +246,19 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
     filterValue,
     searchOpen,
     searchDraft,
-    searchField,
     searchQuery,
     appliedFilters,
     wishlist,
     forSale,
     hidden
   })
-  const addToyPrefill = buildAddToyPrefill(selectedGroupPath, selectedToys, appliedFilters)
+  const filteredSelectionToys = appliedFilters.reduce((result, activeFilter) => {
+    if (activeFilter.field === 'tag') {
+      return result.filter(toy => (toy.tags || []).some(tag => tag.name === activeFilter.value))
+    }
+    return result.filter(toy => String(toy[activeFilter.field] || '') === activeFilter.value)
+  }, selectedToys)
+  const addToyPrefill = buildAddToyPrefill(selectedGroupPath, filteredSelectionToys.length ? filteredSelectionToys : selectedToys, appliedFilters)
   const addToyLinkState = { ...dashboardViewState, prefill: addToyPrefill }
 
   function resetFilterState(){
@@ -255,7 +266,6 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
     setFilterValue('')
     setSearchOpen(false)
     setSearchDraft('')
-    setSearchField('all')
     setSearchQuery('')
     setAppliedFilters([])
     setFilterOpen(false)
@@ -270,7 +280,6 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
   function clearSearch(){
     setSearchQuery('')
     setSearchDraft('')
-    setSearchField('all')
     setSearchOpen(false)
   }
 
@@ -324,24 +333,48 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
   if (error) return <div className="bg-toydb-danger-pale text-toydb-danger p-3 rounded-lg">{error}</div>
   if (!user) return <div className="text-toydb-slate">Loading...</div>
 
+  const displayOwnerName = activeCollectionOwner?.id === currentUser?.id ? (currentUser?.username || currentUser?.email || 'My collection') : (activeCollectionOwner?.username || activeCollectionOwner?.email || 'Shared collection')
   const isListScope = wishlist || forSale || hidden
 
   return (
     <div className="space-y-6">
       {isListScope ? (
         <div className="space-y-3">
-          <section className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <section className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
             <div>
-              <h3 className="text-2xl font-bold tracking-tight text-toydb-navy">{hidden ? 'Hidden Toys' : forSale ? 'For Sale' : 'My Wishlist'}</h3>
+              <h3 className="text-2xl font-bold tracking-tight text-toydb-navy">{hidden ? 'Hidden Toys' : forSale ? 'For Sale' : (isReadOnly ? `${displayOwnerName}'s Wishlist` : 'My Wishlist')}</h3>
               <p className="mt-1 text-sm text-toydb-slate">{hidden ? 'These toys are intentionally hidden from your main collection view.' : forSale ? 'These toys are currently marked for sale.' : 'Keep track of the toys you want to find.'}</p>
             </div>
-            <Link
-              to={hidden ? '/hidden/add' : forSale ? '/add' : '/wishlist/add'}
-              state={addToyLinkState}
-              className="inline-flex items-center justify-center rounded-lg bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white shadow-sm transition hover:bg-toydb-teal-dark sm:ml-auto"
-            >
-              {hidden ? '+ Add Hidden Toy' : forSale ? '+ Add For Sale Toy' : '+ Add Wishlist Toy'}
-            </Link>
+
+            <div className="flex items-center justify-end gap-3">
+              {!isReadOnly && (
+                <Link
+                  to={hidden ? '/hidden/add' : forSale ? '/add' : '/wishlist/add'}
+                  state={addToyLinkState}
+                  className="inline-flex items-center justify-center rounded-lg bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white shadow-sm transition hover:bg-toydb-teal-dark"
+                >
+                  {hidden ? '+ Add Hidden Toy' : forSale ? '+ Add For Sale Toy' : '+ Add Wishlist Toy'}
+                </Link>
+              )}
+
+              {showCollectionSwitcher && (
+                <label className="flex items-center gap-2 rounded-lg border border-toydb-border bg-toydb-white px-3 py-2 text-sm text-toydb-navy shadow-sm">
+                  <span className="font-medium text-toydb-slate">View</span>
+                  <select
+                    value={String(activeCollectionOwner?.id ?? currentUser?.id ?? '')}
+                    onChange={event => {
+                      const selected = accessibleCollections.find(option => String(option.id) === event.target.value)
+                      if (selected) setActiveCollectionOwner(selected)
+                    }}
+                    className="rounded border border-toydb-border bg-toydb-white px-2 py-1 text-sm text-toydb-navy outline-none"
+                  >
+                    {accessibleCollections.map(option => (
+                      <option key={option.id} value={String(option.id)}>{option.id === currentUser?.id ? 'My collection' : (option.username || option.email || 'Collection')}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
+            </div>
           </section>
 
           <div className="flex items-center justify-between gap-3">
@@ -363,12 +396,33 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
           )}
         </div>
       ) : (
-        <section className="flex flex-wrap items-start justify-between gap-3">
+        <section className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
           <div>
-            <h3 className="text-2xl font-bold tracking-tight text-toydb-navy">My Collection</h3>
-            <p className="mt-1 text-sm text-toydb-slate">Keep every favorite in one place.</p>
+            <h3 className="text-2xl font-bold tracking-tight text-toydb-navy">{isReadOnly ? `${displayOwnerName}'s Collection` : 'My Collection'}</h3>
+            <p className="mt-1 text-sm text-toydb-slate">{isReadOnly ? 'Read-only view of this shared collection.' : 'Keep every favorite in one place.'}</p>
           </div>
-          <Link to="/add" state={addToyLinkState} className="rounded-lg bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white shadow-sm hover:bg-toydb-teal-dark">+ Add Collection Toy</Link>
+
+          <div className="flex items-center justify-end gap-3">
+            {!isReadOnly && <Link to="/add" state={addToyLinkState} className="rounded-lg bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white shadow-sm hover:bg-toydb-teal-dark">+ Add Collection Toy</Link>}
+
+            {showCollectionSwitcher && (
+              <label className="flex items-center gap-2 rounded-lg border border-toydb-border bg-toydb-white px-3 py-2 text-sm text-toydb-navy shadow-sm">
+                <span className="font-medium text-toydb-slate">View</span>
+                <select
+                  value={String(activeCollectionOwner?.id ?? currentUser?.id ?? '')}
+                  onChange={event => {
+                    const selected = accessibleCollections.find(option => String(option.id) === event.target.value)
+                    if (selected) setActiveCollectionOwner(selected)
+                  }}
+                  className="rounded border border-toydb-border bg-toydb-white px-2 py-1 text-sm text-toydb-navy outline-none"
+                >
+                  {accessibleCollections.map(option => (
+                    <option key={option.id} value={String(option.id)}>{option.id === currentUser?.id ? 'My collection' : (option.username || option.email || 'Collection')}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+          </div>
         </section>
       )}
 
@@ -407,7 +461,7 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
         <div className="space-y-4">
           {(searchQuery || appliedFilters.length > 0) && <div className="flex flex-wrap gap-2">
             {searchQuery && <button type="button" onClick={clearSearch} className="rounded-full border border-toydb-teal bg-toydb-teal-pale px-2 py-1 text-xs font-medium text-toydb-teal-dark hover:bg-toydb-teal hover:text-toydb-white">
-              {searchFields[searchField]}: {searchQuery} ×
+              All fields: {searchQuery} ×
             </button>}
             {appliedFilters.map(filter => (
               <button key={`${filter.field}:${filter.value}`} type="button" onClick={() => removeFilter(filter.field)} className="rounded-full border border-toydb-orange bg-toydb-orange-pale px-2 py-1 text-xs font-medium text-toydb-orange-dark hover:bg-toydb-orange hover:text-toydb-white">
@@ -415,20 +469,23 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
               </button>
             ))}
           </div>}
-          {searchOpen && !searchQuery && <div className="grid gap-3 border border-toydb-border bg-toydb-white p-3 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,2fr)_auto] sm:items-end">
-            <label className="block text-sm font-medium text-toydb-navy">Search in<select value={searchField} onChange={event => setSearchField(event.target.value)} className="mt-1 w-full p-2"><option value="all">All fields</option>{Object.entries(searchFields).filter(([key]) => key !== 'all').map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
+          {searchOpen && !searchQuery && <div className="grid gap-3 border border-toydb-border bg-toydb-white p-3 sm:grid-cols-[minmax(0,2fr)_auto] sm:items-end">
             <label className="block text-sm font-medium text-toydb-navy">Query<input type="search" value={searchDraft} onChange={event => setSearchDraft(event.target.value)} placeholder="Search this scope" className="mt-1 w-full p-2" /></label>
             <div className="flex gap-2"><button type="button" onClick={applySearch} disabled={!searchDraft.trim()} className="bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white hover:bg-toydb-teal-dark disabled:cursor-not-allowed disabled:opacity-60">Apply</button><button type="button" onClick={clearSearch} className="border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-medium text-toydb-navy hover:bg-toydb-cream">Clear</button></div>
           </div>}
           {filterOpen && <div className="grid gap-3 border border-toydb-border bg-toydb-white p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
-            <label className="block text-sm font-medium text-toydb-navy">Filter by<select value={filterField} onChange={event => changeFilterField(event.target.value)} className="mt-1 w-full p-2"><option value="tag">Tag</option><option value="condition">Condition</option><option value="manufacturer">Manufacturer</option><option value="year">Year</option><option value="series">Series</option><option value="sub_series">Sub-Series</option><option value="theme">Theme</option></select></label>
+            <label className="block text-sm font-medium text-toydb-navy">Filter by<select value={filterField} onChange={event => changeFilterField(event.target.value)} className="mt-1 w-full p-2"><option value="tag">Tag</option><option value="condition">Condition</option><option value="manufacturer">Manufacturer</option><option value="toyline">Toyline</option><option value="year">Year</option><option value="series">Series</option><option value="sub_series">Sub-Series</option><option value="theme">Theme</option></select></label>
             <label className="block text-sm font-medium text-toydb-navy">Value<select value={filterValue} onChange={event => setFilterValue(event.target.value)} className="mt-1 w-full p-2"><option value="">Select a value</option>{filterValues.map(value => <option key={value} value={value}>{value}</option>)}</select></label>
             <div className="flex gap-2"><button type="button" onClick={applyFilter} disabled={!filterValue} className="bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white hover:bg-toydb-teal-dark disabled:cursor-not-allowed disabled:opacity-60">Add filter</button>{appliedFilters.length > 0 && <button type="button" onClick={clearAppliedFilters} className="border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-medium text-toydb-navy hover:bg-toydb-cream">Clear all</button>}</div>
           </div>}
           <div className="grid grid-cols-1 gap-4">
-            {visibleToys.map(toy => <ToyCard key={toy.id} toy={toy} allowDelete onDeleted={onDeleted} returnState={dashboardViewState} deleteLabel={forSale ? 'Sold' : 'Delete'} />)}
+            {visibleToys.map(toy => <ToyCard key={toy.id} toy={toy} allowDelete={!isReadOnly} onDeleted={onDeleted} returnState={dashboardViewState} deleteLabel={forSale ? 'Sold' : 'Delete'} readOnly={isReadOnly} />)}
           </div>
-          {hasMoreToys && <div ref={loadMoreRef} className="py-2 text-center text-xs font-medium uppercase tracking-wide text-toydb-slate">Loading more toys…</div>}
+          {hasMoreToys && (
+            <div ref={loadMoreRef} className="py-2 text-center text-xs font-medium uppercase tracking-wide text-toydb-slate">
+              Loading more toys…
+            </div>
+          )}
           {filteredToys.length === 0 && <div className="border border-dashed border-toydb-border p-4 text-sm text-toydb-slate">No toys match this search or filter in the current scope.</div>}
         </div>
       )}
@@ -461,7 +518,13 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
                 }[previousField] || previousField
               })()}
             </button>
-            <h4 className="text-xl font-bold text-toydb-navy">{selectedGroup || breadcrumbPath[0]?.value || activeGrouping.label} <span className="text-toydb-teal-dark">({selectedToys.length})</span></h4>
+            <h4 className="text-xl font-bold text-toydb-navy">
+              {selectedGroup || breadcrumbPath[0]?.value || activeGrouping.label}
+              <span className="text-toydb-teal-dark"> ({selectedToys.length})</span>
+              {breadcrumbFilteredCount !== null && (
+                <span className="ml-2 text-xl font-bold text-toydb-slate">({breadcrumbFilteredCount})</span>
+              )}
+            </h4>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <button type="button" onClick={() => setSearchOpen(open => !open)} className="rounded-lg border border-toydb-teal bg-toydb-teal-pale px-3 py-2 text-sm font-medium text-toydb-teal-dark hover:bg-toydb-teal hover:text-toydb-white">
@@ -473,7 +536,7 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
           </div>
           {(searchQuery || appliedFilters.length > 0) && <div className="flex flex-wrap gap-2">
             {searchQuery && <button type="button" onClick={clearSearch} className="rounded-full border border-toydb-teal bg-toydb-teal-pale px-2 py-1 text-xs font-medium text-toydb-teal-dark hover:bg-toydb-teal hover:text-toydb-white">
-              {searchFields[searchField]}: {searchQuery} ×
+              All fields: {searchQuery} ×
             </button>}
             {appliedFilters.map(filter => (
               <button key={`${filter.field}:${filter.value}`} type="button" onClick={() => removeFilter(filter.field)} className="rounded-full border border-toydb-orange bg-toydb-orange-pale px-2 py-1 text-xs font-medium text-toydb-orange-dark hover:bg-toydb-orange hover:text-toydb-white">
@@ -481,8 +544,7 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
               </button>
             ))}
           </div>}
-          {searchOpen && !searchQuery && <div className="grid gap-3 border border-toydb-border bg-toydb-white p-3 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,2fr)_auto] sm:items-end">
-            <label className="block text-sm font-medium text-toydb-navy">Search in<select value={searchField} onChange={event => setSearchField(event.target.value)} className="mt-1 w-full p-2"><option value="all">All fields</option>{Object.entries(searchFields).filter(([key]) => key !== 'all').map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
+          {searchOpen && !searchQuery && <div className="grid gap-3 border border-toydb-border bg-toydb-white p-3 sm:grid-cols-[minmax(0,2fr)_auto] sm:items-end">
             <label className="block text-sm font-medium text-toydb-navy">Query<input type="search" value={searchDraft} onChange={event => setSearchDraft(event.target.value)} placeholder="Search this group" className="mt-1 w-full p-2" /></label>
             <div className="flex gap-2"><button type="button" onClick={applySearch} disabled={!searchDraft.trim()} className="bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white hover:bg-toydb-teal-dark disabled:cursor-not-allowed disabled:opacity-60">Apply</button><button type="button" onClick={clearSearch} className="border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-medium text-toydb-navy hover:bg-toydb-cream">Clear</button></div>
           </div>}
@@ -493,37 +555,50 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
           </div>}
           <>
             <div className="grid grid-cols-1 gap-4">
-              {visibleToys.map(t => <ToyCard key={t.id} toy={t} onUpdated={onUpdated} onDeleted={onDeleted} returnState={dashboardViewState} deleteLabel={forSale ? 'Sold' : 'Delete'} />)}
+              {visibleToys.map(t => <ToyCard key={t.id} toy={t} onUpdated={onUpdated} onDeleted={onDeleted} returnState={dashboardViewState} deleteLabel={forSale ? 'Sold' : 'Delete'} readOnly={isReadOnly} />)}
             </div>
-            {hasMoreToys && <div ref={loadMoreRef} className="py-2 text-center text-xs font-medium uppercase tracking-wide text-toydb-slate">Loading more toys…</div>}
+            {hasMoreToys && (
+              <div ref={loadMoreRef} className="py-2 text-center text-xs font-medium uppercase tracking-wide text-toydb-slate">
+                Loading more toys…
+              </div>
+            )}
             {filteredToys.length === 0 && <div className="border border-dashed border-toydb-border p-4 text-sm text-toydb-slate">No toys match this search or filter in the current scope.</div>}
           </>
         </div>
       )}
-      <footer className="border-t border-toydb-border pt-4">
-        <div className="mb-3 flex flex-wrap items-center justify-center gap-2 rounded-lg border border-toydb-border bg-toydb-white px-2 py-2 text-[10px] font-medium uppercase tracking-wide text-toydb-slate shadow-sm sm:gap-3 sm:text-xs">
-          <span className="inline-flex items-center gap-1 rounded-full bg-toydb-teal-pale px-2 py-1 text-toydb-teal-dark">
-            <span className="font-bold text-toydb-navy">{filteredToys.length}</span>
-            <span>Toys</span>
-          </span>
-          <span className="inline-flex items-center gap-1 rounded-full bg-toydb-orange-pale px-2 py-1 text-toydb-orange-dark">
-            <span>Cost</span>
-            <span className="font-bold text-toydb-navy">{formatCurrency(filteredCostTotal)}</span>
-          </span>
-          <span className="inline-flex items-center gap-1 rounded-full bg-toydb-gold/20 px-2 py-1 text-toydb-slate">
-            <span>Value</span>
-            <span className="font-bold text-toydb-navy">{formatCurrency(filteredValueTotal)}</span>
-          </span>
-          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 ${filteredNetTotal >= 0 ? 'bg-toydb-teal-pale text-toydb-teal-dark' : 'bg-toydb-danger-pale text-toydb-danger'}`}>
-            <span>Net</span>
-            <span className="font-bold">{formatCurrency(filteredNetTotal)}</span>
-          </span>
-        </div>
-        <div className="text-center">
+      {!isReadOnly && (
+        <footer className="border-t border-toydb-border pt-4">
+          <div className="mb-3 flex flex-wrap items-center justify-center gap-2 rounded-lg border border-toydb-border bg-toydb-white px-2 py-2 text-[10px] font-medium uppercase tracking-wide text-toydb-slate shadow-sm sm:gap-3 sm:text-xs">
+            <span className="inline-flex items-center gap-1 rounded-full bg-toydb-teal-pale px-2 py-1 text-toydb-teal-dark">
+              <span className="font-bold text-toydb-navy">{filteredToys.length}</span>
+              <span>Toys</span>
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-toydb-orange-pale px-2 py-1 text-toydb-orange-dark">
+              <span>Cost</span>
+              <span className="font-bold text-toydb-navy">{formatCurrency(filteredCostTotal)}</span>
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-toydb-gold/20 px-2 py-1 text-toydb-slate">
+              <span>Value</span>
+              <span className="font-bold text-toydb-navy">{formatCurrency(filteredValueTotal)}</span>
+            </span>
+            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 ${filteredNetTotal >= 0 ? 'bg-toydb-teal-pale text-toydb-teal-dark' : 'bg-toydb-danger-pale text-toydb-danger'}`}>
+              <span>Net</span>
+              <span className="font-bold">{formatCurrency(filteredNetTotal)}</span>
+            </span>
+          </div>
+          <div className="text-center">
+            <div className="text-sm font-bold">Welcome, {user.email}</div>
+            <div className="text-xs text-toydb-slate">Member since: {new Date(user.createdAt).toLocaleString()}</div>
+          </div>
+        </footer>
+      )}
+
+      {isReadOnly && (
+        <footer className="border-t border-toydb-border pt-4 text-center">
           <div className="text-sm font-bold">Welcome, {user.email}</div>
           <div className="text-xs text-toydb-slate">Member since: {new Date(user.createdAt).toLocaleString()}</div>
-        </div>
-      </footer>
+        </footer>
+      )}
     </div>
   )
 }
