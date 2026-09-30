@@ -146,6 +146,15 @@ export default function Account(){
     setBulkCriteria(current => [...current, { id: Date.now() + Math.random(), field: 'toyline', value: '' }])
   }
 
+  function resetBulkDeleteState(){
+    setBulkCriteria([{ id: 1, field: 'toyline', value: '' }])
+    setBulkPreview(null)
+    setBulkDeleteError(null)
+    setBulkDeleteSuccess(null)
+    setBulkDeleteBusy(false)
+    setBulkPreviewBusy(false)
+  }
+
   function removeBulkRow(id){
     setBulkCriteria(current => current.length > 1 ? current.filter(row => row.id !== id) : current)
     setBulkPreview(null)
@@ -156,6 +165,8 @@ export default function Account(){
       .map(row => ({ field: row.field, value: row.value }))
       .filter(row => row.field && String(row.value ?? '').trim())
   }
+
+  const canDeleteBulkToys = Boolean(bulkPreview) && !bulkDeleteBusy && !!getBulkCriteriaPayload().length
 
   async function previewBulkDelete(){
     const criteria = getBulkCriteriaPayload()
@@ -305,16 +316,21 @@ export default function Account(){
               </div>
             )
           })}
-          <button type="button" onClick={addBulkRow} className="rounded-lg border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-medium text-toydb-navy hover:bg-toydb-cream">
-            + Add another filter
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={addBulkRow} className="rounded-lg border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-medium text-toydb-navy hover:bg-toydb-cream">
+              + Add another filter
+            </button>
+            <button type="button" onClick={resetBulkDeleteState} className="rounded-lg border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-medium text-toydb-navy hover:bg-toydb-cream">
+              Reset
+            </button>
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={previewBulkDelete} disabled={bulkPreviewBusy || !getBulkCriteriaPayload().length} className="rounded-lg border border-toydb-orange bg-toydb-orange p-2 font-medium text-toydb-white hover:bg-toydb-orange-dark disabled:cursor-not-allowed disabled:opacity-60">
             {bulkPreviewBusy ? 'Previewing...' : 'Preview matches'}
           </button>
-          <button type="button" onClick={bulkDeleteMatchingToys} disabled={bulkDeleteBusy || !getBulkCriteriaPayload().length} className="rounded-lg border border-toydb-danger bg-toydb-danger p-2 font-bold text-toydb-white hover:bg-toydb-danger/90 disabled:cursor-not-allowed disabled:opacity-60">
+          <button type="button" onClick={bulkDeleteMatchingToys} disabled={!canDeleteBulkToys} className="rounded-lg border border-toydb-danger bg-toydb-danger p-2 font-bold text-toydb-white hover:bg-toydb-danger/90 disabled:cursor-not-allowed disabled:opacity-60">
             {bulkDeleteBusy ? 'Deleting...' : 'Delete Matching Toys (Dangerous)'}
           </button>
         </div>

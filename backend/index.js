@@ -41,7 +41,16 @@ app.use(cors({
 }));
 
 // serve uploaded images
-app.use('/uploads', express.static(require('./uploadsPath')));
+app.use('/uploads', (req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.has(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+}, express.static(require('./uploadsPath')));
 
 app.use('/auth', authRoutes);
 app.use('/toys', toysRoutes);

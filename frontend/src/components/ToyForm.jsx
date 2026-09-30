@@ -27,12 +27,13 @@ function buildFormState(initialValues = {}, hiddenValue = false) {
   }
 }
 
-export default function ToyForm({ wishlist = false, hidden = false, initialValues = {}, onCreated, onCancel }){
+export default function ToyForm({ wishlist = false, hidden = false, initialValues = {}, suggestionContext = {}, onCreated, onCancel }){
   const [form, setForm] = useState(() => buildFormState(initialValues, hidden))
   const [photos, setPhotos] = useState(null)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
   const suggestions = useToySuggestions({
+    ...suggestionContext,
     manufacturer: form.manufacturer,
     toyline: form.toyline,
     series: form.series,

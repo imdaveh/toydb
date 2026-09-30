@@ -6,6 +6,17 @@ export default function AddToy({ wishlist = false, hidden = false }){
   const navigate = useNavigate()
   const location = useLocation()
   const prefill = location.state?.prefill || {}
+  const suggestionContext = {}
+  for (const step of location.state?.selectedGroupPath || []) {
+    if (step && ['manufacturer', 'toyline', 'series', 'sub_series', 'theme'].includes(step.field)) {
+      suggestionContext[step.field] = step.value
+    }
+  }
+  for (const filter of location.state?.appliedFilters || []) {
+    if (filter && ['manufacturer', 'toyline', 'series', 'sub_series', 'theme'].includes(filter.field)) {
+      suggestionContext[filter.field] = filter.value
+    }
+  }
 
   function getReturnTarget(){
     const targetPath = hidden ? '/hidden' : wishlist ? '/wishlist' : '/dashboard'
@@ -23,7 +34,7 @@ export default function AddToy({ wishlist = false, hidden = false }){
     <div className="space-y-4">
       <h2 className="text-lg font-bold">{hidden ? 'Add a Hidden Toy' : wishlist ? 'Add a Wishlist Toy' : 'Add a New Toy'}</h2>
       <div className="p-4 bg-toydb-white border border-toydb-border rounded-xl shadow-sm">
-        <ToyForm wishlist={wishlist} hidden={hidden} initialValues={prefill} onCreated={onCreated} onCancel={() => {
+        <ToyForm wishlist={wishlist} hidden={hidden} initialValues={prefill} suggestionContext={suggestionContext} onCreated={onCreated} onCancel={() => {
           const { targetPath, returnState } = getReturnTarget()
           navigate(targetPath, { state: returnState })
         }} />

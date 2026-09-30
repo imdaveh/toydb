@@ -4,6 +4,7 @@ import useToySuggestions from '../hooks/useToySuggestions'
 import useTags from '../hooks/useTags'
 import AutocompleteInput from '../components/AutocompleteInput'
 import TagPicker from '../components/TagPicker'
+import { exportCanvasBlob } from '../utils/photoExport'
 
 const conditions = ['Mint', 'Excellent', 'Good', 'Fair', 'Poor', 'Broken']
 const defaultEditorState = {
@@ -29,9 +30,28 @@ export default function EditToy(){
   const [editor, setEditor] = useState(null)
   const [editorState, setEditorState] = useState(defaultEditorState)
   const canvasRef = useRef(null)
+  const suggestionContext = {}
+  const dashboardScope = location.state?.from?.state || location.state || {}
+  for (const step of dashboardScope.selectedGroupPath || []) {
+    if (step && ['manufacturer', 'toyline', 'series', 'sub_series', 'theme'].includes(step.field)) {
+      suggestionContext[step.field] = step.value
+    }
+  }
+  for (const filter of dashboardScope.appliedFilters || []) {
+    if (filter && ['manufacturer', 'toyline', 'series', 'sub_series', 'theme'].includes(filter.field)) {
+      suggestionContext[filter.field] = filter.value
+    }
+  }
   const imageRef = useRef(null)
   const dragRef = useRef(null)
-  const suggestions = useToySuggestions()
+  const suggestions = useToySuggestions({
+    ...suggestionContext,
+    manufacturer: form.manufacturer,
+    toyline: form.toyline,
+    series: form.series,
+    sub_series: form.sub_series,
+    theme: form.theme
+  })
   const allTags = useTags()
 
   function normalizeAccessoryList(items) {
@@ -88,9 +108,13 @@ export default function EditToy(){
   useEffect(() => {
     if (!editor) return
     const img = new Image()
+    img.crossOrigin = 'anonymous'
     img.onload = () => {
       imageRef.current = img
       setEditorState({ ...defaultEditorState, crop: { x: 0, y: 0, width: 1, height: 1 } })
+    }
+    img.onerror = () => {
+      setError('Unable to load the selected photo for editing.')
     }
     img.src = import.meta.env.VITE_API_BASE + editor.imageUrl
   }, [editor])
@@ -237,8 +261,7 @@ export default function EditToy(){
     if (!token) { setError('Not authenticated'); setBusy(false); return }
     try {
       const canvas = canvasRef.current
-      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', 0.82))
-      if (!blob) throw new Error('Unable to export photo')
+      const blob = await exportCanvasBlob(canvas)
 
       const formData = new FormData()
       formData.append('photo', blob, editor.name || 'photo.webp')
@@ -248,12 +271,18 @@ export default function EditToy(){
         headers: { Authorization: 'Bearer ' + token },
         body: formData
       })
-      const data = await response.json()
-      if (!response.ok) { setError(data.error || 'Photo update failed'); setBusy(false); return }
+
+      const responseText = await response.text()
+      let data = null
+      try { data = responseText ? JSON.parse(responseText) : null } catch (error) {
+        throw new Error(responseText || 'Photo update failed')
+      }
+
+      if (!response.ok) { setError(data?.error || 'Photo update failed'); setBusy(false); return }
       setEditor(null)
       await load()
     } catch (error) {
-      setError('Server error')
+      setError(error.message || 'Server error')
     }
     setBusy(false)
   }

@@ -116,6 +116,29 @@ test('prefills the add-toy form from the current tree path and available common 
   })
 })
 
+test('adds active dashboard filters to the add-toy prefill', () => {
+  const path = [{ field: 'toyline', value: 'G.I. Joe' }]
+  const toys = [
+    { manufacturer: 'Hasbro', toyline: 'G.I. Joe', series: 'A Real American Hero', sub_series: 'Team', theme: 'Action', year: 1985 },
+    { manufacturer: 'Hasbro', toyline: 'G.I. Joe', series: 'A Real American Hero', sub_series: 'Team', theme: 'Action', year: 1985 }
+  ]
+
+  const prefill = buildAddToyPrefill(path, toys, [
+    { field: 'manufacturer', value: 'Hasbro' },
+    { field: 'theme', value: 'Action' },
+    { field: 'year', value: '1985' }
+  ])
+
+  assert.deepEqual(prefill, {
+    manufacturer: 'Hasbro',
+    toyline: 'G.I. Joe',
+    series: 'A Real American Hero',
+    sub_series: 'Team',
+    theme: 'Action',
+    year: 1985
+  })
+})
+
 test('uses the shorter drill chains for the dashboard entry points', () => {
   const toys = [
     { manufacturer: 'Hasbro', toyline: 'G.I. Joe', series: 'A Real American Hero', sub_series: 'Team', theme: 'Action', year: 1985 },

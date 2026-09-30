@@ -113,6 +113,7 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
     tag: 'Tag',
     condition: 'Condition',
     manufacturer: 'Manufacturer',
+    toyline: 'Toyline',
     year: 'Year',
     series: 'Series',
     sub_series: 'Sub-Series',
@@ -246,7 +247,7 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
     forSale,
     hidden
   })
-  const addToyPrefill = buildAddToyPrefill(selectedGroupPath, selectedToys)
+  const addToyPrefill = buildAddToyPrefill(selectedGroupPath, selectedToys, appliedFilters)
   const addToyLinkState = { ...dashboardViewState, prefill: addToyPrefill }
 
   function resetFilterState(){
@@ -282,11 +283,7 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
 
   function selectGroup(groupName, field = grouping){
     setSelectedGroup(groupName)
-    setSelectedGroupPath(previous => {
-      const currentSelection = getSelectedToysForPath(toys, previous)
-      const withImplicitAncestors = addImplicitAncestorSteps(previous, currentSelection, field)
-      return getUpdatedPathForSelection(withImplicitAncestors, field, groupName)
-    })
+    setSelectedGroupPath([{ field, value: groupName }])
     resetFilterState()
   }
 
@@ -464,7 +461,7 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
                 }[previousField] || previousField
               })()}
             </button>
-            <h4 className="text-xl font-bold text-toydb-navy">{breadcrumbPath.filter(step => !['sub_series', 'theme'].includes(step.field)).map(step => step.value).join(' / ')} <span className="text-toydb-teal-dark">({selectedToys.length})</span></h4>
+            <h4 className="text-xl font-bold text-toydb-navy">{selectedGroup || breadcrumbPath[0]?.value || activeGrouping.label} <span className="text-toydb-teal-dark">({selectedToys.length})</span></h4>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <button type="button" onClick={() => setSearchOpen(open => !open)} className="rounded-lg border border-toydb-teal bg-toydb-teal-pale px-3 py-2 text-sm font-medium text-toydb-teal-dark hover:bg-toydb-teal hover:text-toydb-white">
@@ -490,33 +487,17 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
             <div className="flex gap-2"><button type="button" onClick={applySearch} disabled={!searchDraft.trim()} className="bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white hover:bg-toydb-teal-dark disabled:cursor-not-allowed disabled:opacity-60">Apply</button><button type="button" onClick={clearSearch} className="border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-medium text-toydb-navy hover:bg-toydb-cream">Clear</button></div>
           </div>}
           {filterOpen && <div className="grid gap-3 border border-toydb-border bg-toydb-white p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
-            <label className="block text-sm font-medium text-toydb-navy">Filter by<select value={filterField} onChange={event => changeFilterField(event.target.value)} className="mt-1 w-full p-2"><option value="tag">Tag</option><option value="condition">Condition</option><option value="manufacturer">Manufacturer</option><option value="year">Year</option><option value="series">Series</option><option value="sub_series">Sub-Series</option><option value="theme">Theme</option></select></label>
+            <label className="block text-sm font-medium text-toydb-navy">Filter by<select value={filterField} onChange={event => changeFilterField(event.target.value)} className="mt-1 w-full p-2"><option value="tag">Tag</option><option value="condition">Condition</option><option value="manufacturer">Manufacturer</option><option value="toyline">Toyline</option><option value="year">Year</option><option value="series">Series</option><option value="sub_series">Sub-Series</option><option value="theme">Theme</option></select></label>
             <label className="block text-sm font-medium text-toydb-navy">Value<select value={filterValue} onChange={event => setFilterValue(event.target.value)} className="mt-1 w-full p-2"><option value="">Select a value</option>{filterValues.map(value => <option key={value} value={value}>{value}</option>)}</select></label>
             <div className="flex gap-2"><button type="button" onClick={applyFilter} disabled={!filterValue} className="bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white hover:bg-toydb-teal-dark disabled:cursor-not-allowed disabled:opacity-60">Add filter</button>{appliedFilters.length > 0 && <button type="button" onClick={clearAppliedFilters} className="border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-medium text-toydb-navy hover:bg-toydb-cream">Clear all</button>}</div>
           </div>}
-          {currentDrillField && nextLevelGroups.length > 1 ? (
-            <div className="grid gap-3">
-              {nextLevelGroups.map(([groupName, groupToys]) => (
-                <button
-                  key={`${groupName}-${currentDrillField}`}
-                  type="button"
-                  onClick={() => selectGroup(groupName, currentDrillField)}
-                  className="group w-full flex items-center justify-between gap-4 border border-toydb-border border-l-4 border-l-toydb-teal bg-toydb-white p-4 text-left shadow-sm hover:-translate-y-0.5 hover:border-toydb-teal hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-toydb-teal"
-                >
-                  <span className="font-bold text-toydb-navy group-hover:text-toydb-teal-dark">{groupName}</span>
-                  <span className="rounded-full bg-toydb-teal-pale px-3 py-1 text-sm font-medium text-toydb-teal-dark">{groupToys.length} {groupToys.length === 1 ? 'toy' : 'toys'} &rarr;</span>
-                </button>
-              ))}
+          <>
+            <div className="grid grid-cols-1 gap-4">
+              {visibleToys.map(t => <ToyCard key={t.id} toy={t} onUpdated={onUpdated} onDeleted={onDeleted} returnState={dashboardViewState} deleteLabel={forSale ? 'Sold' : 'Delete'} />)}
             </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-1 gap-4">
-                {visibleToys.map(t => <ToyCard key={t.id} toy={t} onUpdated={onUpdated} onDeleted={onDeleted} returnState={dashboardViewState} deleteLabel={forSale ? 'Sold' : 'Delete'} />)}
-              </div>
-              {hasMoreToys && <div ref={loadMoreRef} className="py-2 text-center text-xs font-medium uppercase tracking-wide text-toydb-slate">Loading more toys…</div>}
-              {filteredToys.length === 0 && <div className="border border-dashed border-toydb-border p-4 text-sm text-toydb-slate">No toys match this search or filter in the current scope.</div>}
-            </>
-          )}
+            {hasMoreToys && <div ref={loadMoreRef} className="py-2 text-center text-xs font-medium uppercase tracking-wide text-toydb-slate">Loading more toys…</div>}
+            {filteredToys.length === 0 && <div className="border border-dashed border-toydb-border p-4 text-sm text-toydb-slate">No toys match this search or filter in the current scope.</div>}
+          </>
         </div>
       )}
       <footer className="border-t border-toydb-border pt-4">

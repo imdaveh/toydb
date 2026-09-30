@@ -80,22 +80,31 @@ export function getUpdatedPathForSelection(path = [], field, value) {
   return [nextStep]
 }
 
-export function buildAddToyPrefill(path = [], toys = []) {
-  if (!Array.isArray(path) || !path.length) return {}
-
+export function buildAddToyPrefill(path = [], toys = [], activeFilters = []) {
   const pathValues = {}
-  for (const step of path) {
-    if (!step || typeof step.field !== 'string') continue
-    if (['manufacturer', 'toyline', 'series', 'sub_series', 'year'].includes(step.field)) {
-      pathValues[step.field] = step.value
+  if (Array.isArray(path)) {
+    for (const step of path) {
+      if (!step || typeof step.field !== 'string') continue
+      if (['manufacturer', 'toyline', 'series', 'sub_series', 'year'].includes(step.field)) {
+        pathValues[step.field] = step.value
+      }
     }
+  }
+
+  const filterValues = {}
+  for (const filter of Array.isArray(activeFilters) ? activeFilters : []) {
+    if (!filter || typeof filter.field !== 'string') continue
+    if (!['manufacturer', 'toyline', 'series', 'sub_series', 'theme', 'year'].includes(filter.field)) continue
+    const value = filter.value
+    if (value === null || value === undefined || String(value).trim() === '') continue
+    filterValues[filter.field] = value
   }
 
   const fallbackFields = ['manufacturer', 'toyline', 'series', 'sub_series', 'theme', 'year']
   const fallbackValues = {}
 
   for (const field of fallbackFields) {
-    if (Object.prototype.hasOwnProperty.call(pathValues, field)) continue
+    if (Object.prototype.hasOwnProperty.call(pathValues, field) || Object.prototype.hasOwnProperty.call(filterValues, field)) continue
 
     const values = (Array.isArray(toys) ? toys : [])
       .map(toy => toy?.[field])
@@ -108,7 +117,7 @@ export function buildAddToyPrefill(path = [], toys = []) {
     else if (field === 'theme' && values.length) fallbackValues[field] = values[0]
   }
 
-  const combined = { ...pathValues, ...fallbackValues }
+  const combined = { ...pathValues, ...filterValues, ...fallbackValues }
   const prefill = {}
 
   for (const [field, value] of Object.entries(combined)) {
