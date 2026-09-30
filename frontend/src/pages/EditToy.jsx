@@ -4,7 +4,7 @@ import useToySuggestions from '../hooks/useToySuggestions'
 import useTags from '../hooks/useTags'
 import AutocompleteInput from '../components/AutocompleteInput'
 import TagPicker from '../components/TagPicker'
-import { buildFilterString, clamp, hasCropSelection, sharpenImageData } from '../utils/imageEditor'
+import { adjustImageData, clamp, hasCropSelection, sharpenImageData } from '../utils/imageEditor'
 import { exportCanvasBlob } from '../utils/photoExport'
 
 const conditions = ['Mint', 'Excellent', 'Good', 'Fair', 'Poor', 'Broken']
@@ -156,13 +156,15 @@ export default function EditToy(){
     offCtx.translate(offscreen.width / 2, offscreen.height / 2)
     offCtx.rotate((editorState.rotation * Math.PI) / 180)
     offCtx.scale(editorState.flipX ? -1 : 1, editorState.flipY ? -1 : 1)
-    offCtx.filter = buildFilterString({
+    offCtx.drawImage(img, -offscreen.width / 2, -offscreen.height / 2, offscreen.width, offscreen.height)
+    offCtx.restore()
+
+    const adjustedImage = adjustImageData(offCtx.getImageData(0, 0, offscreen.width, offscreen.height), {
       brightness: editorState.brightness,
       contrast: editorState.contrast,
       saturation: editorState.saturation
     })
-    offCtx.drawImage(img, -offscreen.width / 2, -offscreen.height / 2, offscreen.width, offscreen.height)
-    offCtx.restore()
+    offCtx.putImageData(adjustedImage, 0, 0)
 
     const crop = editorState.crop
     const sx = Math.max(0, Math.min(offscreen.width - 1, crop.x * offscreen.width))

@@ -14,6 +14,44 @@ export function buildFilterString({ brightness = 100, contrast = 100, saturation
   return `brightness(${clamp(brightness, 0, 300)}%) contrast(${clamp(contrast, 0, 300)}%) saturate(${clamp(saturation, 0, 300)}%)`
 }
 
+export function adjustImageData(imageData, { brightness = 100, contrast = 100, saturation = 100 } = {}) {
+  const ActiveImageData = globalThis.ImageData || ImageDataConstructor
+  if (!(imageData instanceof ActiveImageData)) return imageData
+
+  const { data, width, height } = imageData
+  const output = new Uint8ClampedArray(data.length)
+  const brightnessScale = clamp(brightness, 0, 300) / 100
+  const contrastScale = clamp(contrast, 0, 300) / 100
+  const saturationScale = clamp(saturation, 0, 300) / 100
+
+  for (let i = 0; i < data.length; i += 4) {
+    const alpha = data[i + 3]
+    const r = data[i]
+    const g = data[i + 1]
+    const b = data[i + 2]
+
+    const brightnessAdjustedR = r * brightnessScale
+    const brightnessAdjustedG = g * brightnessScale
+    const brightnessAdjustedB = b * brightnessScale
+
+    const contrastAdjustedR = (brightnessAdjustedR - 128) * contrastScale + 128
+    const contrastAdjustedG = (brightnessAdjustedG - 128) * contrastScale + 128
+    const contrastAdjustedB = (brightnessAdjustedB - 128) * contrastScale + 128
+
+    const luminance = 0.2126 * contrastAdjustedR + 0.7152 * contrastAdjustedG + 0.0722 * contrastAdjustedB
+    const saturatedR = luminance + (contrastAdjustedR - luminance) * saturationScale
+    const saturatedG = luminance + (contrastAdjustedG - luminance) * saturationScale
+    const saturatedB = luminance + (contrastAdjustedB - luminance) * saturationScale
+
+    output[i] = clamp(saturatedR, 0, 255)
+    output[i + 1] = clamp(saturatedG, 0, 255)
+    output[i + 2] = clamp(saturatedB, 0, 255)
+    output[i + 3] = alpha
+  }
+
+  return new ImageDataConstructor(output, width, height)
+}
+
 export function hasCropSelection(dragState) {
   return Boolean(dragState && dragState.type === 'crop' && dragState.start && dragState.current)
 }

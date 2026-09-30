@@ -479,7 +479,7 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
             <div className="flex gap-2"><button type="button" onClick={applyFilter} disabled={!filterValue} className="bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white hover:bg-toydb-teal-dark disabled:cursor-not-allowed disabled:opacity-60">Add filter</button>{appliedFilters.length > 0 && <button type="button" onClick={clearAppliedFilters} className="border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-medium text-toydb-navy hover:bg-toydb-cream">Clear all</button>}</div>
           </div>}
           <div className="grid grid-cols-1 gap-4">
-            {visibleToys.map(toy => <ToyCard key={toy.id} toy={toy} allowDelete={!isReadOnly} onDeleted={onDeleted} returnState={dashboardViewState} deleteLabel={forSale ? 'Sold' : 'Delete'} readOnly={isReadOnly} />)}
+            {visibleToys.map(toy => <ToyCard key={toy.id} toy={toy} allowDelete={!isReadOnly} onDeleted={onDeleted} returnState={dashboardViewState} deleteLabel={forSale ? 'Sold' : 'Delete'} readOnly={isReadOnly} scopeToys={filteredToys} />)}
           </div>
           {hasMoreToys && (
             <div ref={loadMoreRef} className="py-2 text-center text-xs font-medium uppercase tracking-wide text-toydb-slate">
@@ -555,7 +555,7 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
           </div>}
           <>
             <div className="grid grid-cols-1 gap-4">
-              {visibleToys.map(t => <ToyCard key={t.id} toy={t} onUpdated={onUpdated} onDeleted={onDeleted} returnState={dashboardViewState} deleteLabel={forSale ? 'Sold' : 'Delete'} readOnly={isReadOnly} />)}
+              {visibleToys.map(t => <ToyCard key={t.id} toy={t} onUpdated={onUpdated} onDeleted={onDeleted} returnState={dashboardViewState} deleteLabel={forSale ? 'Sold' : 'Delete'} readOnly={isReadOnly} scopeToys={filteredToys} />)}
             </div>
             {hasMoreToys && (
               <div ref={loadMoreRef} className="py-2 text-center text-xs font-medium uppercase tracking-wide text-toydb-slate">

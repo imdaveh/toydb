@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { buildFilterString, clamp, hasCropSelection, sharpenImageData } from './imageEditor.js'
+import { adjustImageData, buildFilterString, clamp, hasCropSelection, sharpenImageData } from './imageEditor.js'
 
 const ImageDataFallback = class {
   constructor(data, width, height) {
@@ -26,6 +26,26 @@ test('buildFilterString includes brightness, contrast and saturation values', ()
   assert.match(filter, /brightness\(140%\)/)
   assert.match(filter, /contrast\(120%\)/)
   assert.match(filter, /saturate\(110%\)/)
+})
+
+test('adjustImageData applies brightness, contrast and saturation with a browser-safe pixel transform', () => {
+  const original = new Uint8ClampedArray([
+    100, 80, 60, 255,
+    200, 150, 100, 255
+  ])
+
+  const imageData = new ImageData(original, 2, 1)
+  const adjusted = adjustImageData(imageData, {
+    brightness: 150,
+    contrast: 120,
+    saturation: 200
+  })
+
+  assert.ok(adjusted.data[0] !== imageData.data[0])
+  assert.ok(adjusted.data[1] !== imageData.data[1])
+  assert.ok(adjusted.data[2] !== imageData.data[2])
+  assert.equal(adjusted.width, 2)
+  assert.equal(adjusted.height, 1)
 })
 
 test('sharpenImageData increases edge contrast for a sample image', () => {
