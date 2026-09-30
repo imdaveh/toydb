@@ -98,6 +98,7 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
   const currentSelectionToys = getSelectedToysForPath(toys, selectedGroupPath)
   const implicitDrillPath = addImplicitAncestorSteps(selectedGroupPath, currentSelectionToys, 'sub_series')
   const drillScopeToys = getSelectedToysForPath(toys, implicitDrillPath)
+  const breadcrumbPath = implicitDrillPath.length > selectedGroupPath.length ? implicitDrillPath : selectedGroupPath
 
   const baseDrillField = implicitDrillPath.length
     ? getNextField(implicitDrillPath[implicitDrillPath.length - 1].field)
@@ -461,7 +462,7 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
                 year: 'Years'
               }[selectedGroupPath[selectedGroupPath.length - 2].field] || selectedGroupPath[selectedGroupPath.length - 2].field : activeGrouping.label}
             </button>
-            <h4 className="text-xl font-bold text-toydb-navy">{selectedGroupPath.map(step => step.value).join(' / ')} <span className="text-toydb-teal-dark">({selectedToys.length})</span></h4>
+            <h4 className="text-xl font-bold text-toydb-navy">{breadcrumbPath.map(step => step.value).join(' / ')} <span className="text-toydb-teal-dark">({selectedToys.length})</span></h4>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <button type="button" onClick={() => setSearchOpen(open => !open)} className="rounded-lg border border-toydb-teal bg-toydb-teal-pale px-3 py-2 text-sm font-medium text-toydb-teal-dark hover:bg-toydb-teal hover:text-toydb-white">
