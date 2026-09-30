@@ -304,10 +304,6 @@ export default function EditToy(){
     setEditorState({ ...defaultEditorState, crop: { x: 0, y: 0, width: 1, height: 1 } })
   }
 
-  function updateImageAdjustment(field, value){
-    setEditorState(current => ({ ...current, [field]: Number(value) }))
-  }
-
   function updateField(field, value){ setForm(current => ({ ...current, [field]: value })) }
 
   function updateAccessory(index, updates) {
@@ -423,28 +419,24 @@ export default function EditToy(){
                     <div className="space-y-4">
                       <div className="rounded-xl border border-toydb-border bg-toydb-cream p-1.5">
                         <div className="flex items-center justify-center gap-1.5">
-                          <EditorActionButton title="Rotate left" ariaLabel="Rotate left" onClick={() => setEditorState(current => ({ ...current, rotation: (current.rotation - 90 + 360) % 360 }))}>↺</EditorActionButton>
+                          <EditorActionButton title="Rotate left" ariaLabel="Rotate left" onClick={() => setEditorState(current => ({ ...current, rotation: (current.rotation - 90 + 360) % 360 }))}>
+                            <IconRotateLeft />
+                          </EditorActionButton>
                           <span className="min-w-0 text-center text-[9px] font-bold uppercase tracking-[0.18em] text-toydb-slate">Rotate</span>
-                          <EditorActionButton title="Rotate right" ariaLabel="Rotate right" onClick={() => setEditorState(current => ({ ...current, rotation: (current.rotation + 90) % 360 }))}>↻</EditorActionButton>
+                          <EditorActionButton title="Rotate right" ariaLabel="Rotate right" onClick={() => setEditorState(current => ({ ...current, rotation: (current.rotation + 90) % 360 }))}>
+                            <IconRotateRight />
+                          </EditorActionButton>
                         </div>
                         <div className="mt-2 flex items-center justify-center gap-1.5">
-                          <EditorActionButton title="Flip horizontal" ariaLabel="Flip horizontal" onClick={() => setEditorState(current => ({ ...current, flipX: !current.flipX }))}>↔</EditorActionButton>
+                          <EditorActionButton title="Flip horizontal" ariaLabel="Flip horizontal" onClick={() => setEditorState(current => ({ ...current, flipX: !current.flipX }))}>
+                            <IconFlipHorizontal />
+                          </EditorActionButton>
                           <span className="min-w-0 text-center text-[9px] font-bold uppercase tracking-[0.18em] text-toydb-slate">Flip</span>
-                          <EditorActionButton title="Flip vertical" ariaLabel="Flip vertical" onClick={() => setEditorState(current => ({ ...current, flipY: !current.flipY }))}>↕</EditorActionButton>
+                          <EditorActionButton title="Flip vertical" ariaLabel="Flip vertical" onClick={() => setEditorState(current => ({ ...current, flipY: !current.flipY }))}>
+                            <IconFlipVertical />
+                          </EditorActionButton>
                         </div>
                       </div>
-                      <label className="block text-sm font-semibold text-toydb-navy">
-                        Brightness
-                        <input type="range" min="0" max="200" value={editorState.brightness} onInput={event => updateImageAdjustment('brightness', event.target.value)} onChange={event => updateImageAdjustment('brightness', event.target.value)} className="mt-1 w-full accent-toydb-teal touch-pan-y" style={{ touchAction: 'pan-y' }} />
-                      </label>
-                      <label className="block text-sm font-semibold text-toydb-navy">
-                        Contrast
-                        <input type="range" min="0" max="200" value={editorState.contrast} onInput={event => updateImageAdjustment('contrast', event.target.value)} onChange={event => updateImageAdjustment('contrast', event.target.value)} className="mt-1 w-full accent-toydb-teal touch-pan-y" style={{ touchAction: 'pan-y' }} />
-                      </label>
-                      <label className="block text-sm font-semibold text-toydb-navy">
-                        Saturation
-                        <input type="range" min="0" max="200" value={editorState.saturation} onInput={event => updateImageAdjustment('saturation', event.target.value)} onChange={event => updateImageAdjustment('saturation', event.target.value)} className="mt-1 w-full accent-toydb-teal touch-pan-y" style={{ touchAction: 'pan-y' }} />
-                      </label>
                       <button type="button" onClick={resetEditorState} className="w-full rounded-lg border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-semibold text-toydb-navy shadow-sm transition hover:border-toydb-teal hover:bg-toydb-cream focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-toydb-teal focus-visible:ring-offset-2">Reset</button>
                       <button type="button" onClick={saveEditedPhoto} disabled={busy} className="w-full rounded-lg bg-toydb-teal px-3 py-2 text-sm font-semibold text-toydb-white shadow-sm transition hover:bg-toydb-teal-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-toydb-teal focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60">{busy ? 'Saving...' : 'Save edited photo'}</button>
                     </div>
@@ -466,10 +458,48 @@ function EditorActionButton({ title, ariaLabel, onClick, children }){
       title={title}
       aria-label={ariaLabel}
       onClick={onClick}
-      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-toydb-border bg-toydb-white text-lg leading-none text-toydb-navy shadow-sm transition hover:border-toydb-teal hover:bg-toydb-teal/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-toydb-teal focus-visible:ring-offset-2 sm:h-10 sm:w-10 sm:text-xl"
+      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-toydb-border bg-toydb-white text-toydb-navy shadow-sm transition hover:border-toydb-teal hover:bg-toydb-teal/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-toydb-teal focus-visible:ring-offset-2 sm:h-10 sm:w-10"
     >
       {children}
     </button>
+  )
+}
+
+function IconRotateLeft(){
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 sm:h-5 sm:w-5">
+      <path d="M8 8h8a4 4 0 1 1 0 8H10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M8 8l2-2M8 8l2 2" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function IconRotateRight(){
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 sm:h-5 sm:w-5">
+      <path d="M16 8H8a4 4 0 1 0 0 8h6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M16 8l-2-2M16 8l-2 2" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function IconFlipHorizontal(){
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 sm:h-5 sm:w-5">
+      <path d="M5 7h14M5 12h14M5 17h14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" opacity="0.28" />
+      <path d="M8 4v16M16 4v16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M8 8l-3 4 3 4M16 8l3 4-3 4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function IconFlipVertical(){
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 sm:h-5 sm:w-5">
+      <path d="M7 5v14M12 5v14M17 5v14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" opacity="0.28" />
+      <path d="M4 8h16M4 16h16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M8 8l4-3 4 3M8 16l4 3 4-3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   )
 }
 
