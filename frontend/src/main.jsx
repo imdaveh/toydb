@@ -18,7 +18,17 @@ import Account from './pages/Account'
 
 import { registerSW } from 'virtual:pwa-register'
 
-registerSW({ immediate: true })
+const updateSW = registerSW({
+  immediate: true,
+  onNeedRefresh() {
+    if (window.confirm('A new version of ToyDB is available. Reload to update?')) {
+      updateSW(true)
+    }
+  },
+  onOfflineReady() {
+    console.info('ToyDB is ready to work offline.')
+  }
+})
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
