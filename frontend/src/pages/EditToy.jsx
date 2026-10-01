@@ -320,6 +320,24 @@ export default function EditToy(){
     setBusy(false)
   }
 
+  async function copyToy(){
+    if (isReadOnly) {
+      setError('This collection is read-only. Switch back to your own collection to copy toys.');
+      return
+    }
+    setBusy(true); setError(null)
+    const token = await getToken()
+    if (!token) { setError('Not authenticated'); setBusy(false); return }
+    try {
+      const response = await fetch(import.meta.env.VITE_API_BASE + '/toys/' + id + '/copy', { method: 'POST', headers: { Authorization: 'Bearer ' + token } })
+      const data = await response.json()
+      if (!response.ok) { setError(data.error || 'Unable to copy toy'); setBusy(false); return }
+      navigate(`/toys/${data.id}/edit`, { state: location.state })
+      return
+    } catch (error) { setError('Server error') }
+    finally { setBusy(false) }
+  }
+
   async function deletePhoto(photoId){
     if (!confirm('Delete this photo?')) return
     setBusy(true)
@@ -713,7 +731,12 @@ export default function EditToy(){
           </div>) : <div className="text-sm text-toydb-slate">No photos</div>}</div>
         </div>
         <div className="mt-3 space-y-2">
-          <div className="grid grid-cols-3 gap-2"><button onClick={goBackToPreviousView} className="w-full border border-toydb-border bg-toydb-white p-2 text-toydb-navy rounded-lg">Cancel</button><button onClick={deleteToy} disabled={busy} className="w-full bg-toydb-danger p-2 text-toydb-white rounded-lg">Delete Toy</button><button onClick={save} disabled={busy} className="w-full bg-toydb-teal p-2 font-medium text-toydb-white rounded-lg">{busy ? 'Saving...' : 'Save Toy'}</button></div>
+          <div className="grid grid-cols-3 gap-2">
+            <button onClick={goBackToPreviousView} className="w-full border border-toydb-border bg-toydb-white p-2 text-toydb-navy rounded-lg">Cancel</button>
+            <button onClick={deleteToy} disabled={busy} className="w-full bg-toydb-danger p-2 text-toydb-white rounded-lg">Delete Toy</button>
+            <button onClick={copyToy} disabled={busy} className="w-full rounded-lg border border-toydb-teal bg-toydb-white p-2 font-medium text-toydb-teal-dark hover:bg-toydb-cream disabled:cursor-not-allowed disabled:opacity-60">Copy Toy</button>
+          </div>
+          <button onClick={save} disabled={busy} className="w-full bg-toydb-teal p-2 font-medium text-toydb-white rounded-lg">{busy ? 'Saving...' : 'Save Toy'}</button>
           {Boolean(toy.is_wishlist) && <button onClick={moveToCollection} disabled={busy} className="w-full rounded-lg bg-toydb-gold p-2 font-medium text-toydb-navy hover:bg-toydb-gold-dark hover:text-toydb-white disabled:cursor-not-allowed disabled:opacity-60">Move to My Collection</button>}
         </div>
       </div>

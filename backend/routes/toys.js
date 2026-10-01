@@ -852,6 +852,45 @@ router.put('/:id', authenticate, async (req, res) => {
   }
 });
 
+// Duplicate a toy (and its tags and accessories), incrementing the copy number.
+router.post('/:id/copy', authenticate, async (req, res) => {
+  const userId = req.user.id;
+  const id = req.params.id;
+  try {
+    const [rows] = await pool.query('SELECT * FROM toys WHERE id = ? AND user_id = ?', [id, userId]);
+    if (!rows.length) return res.status(404).json({ error: 'Toy not found' });
+    const toy = rows[0];
+
+    // `<=>` is MySQL's null-safe equality operator, needed since several identity fields can be NULL.
+    const [maxRows] = await pool.query(
+      'SELECT COALESCE(MAX(copy), 0) AS max_copy FROM toys WHERE user_id = ? AND name <=> ? AND manufacturer <=> ? AND series <=> ? AND sub_series <=> ? AND theme <=> ? AND toyline <=> ? AND `year` <=> ?',
+      [userId, toy.name, toy.manufacturer, toy.series, toy.sub_series, toy.theme, toy.toyline, toy.year]
+    );
+    const nextCopy = Number(maxRows[0]?.max_copy || 0) + 1;
+
+    const [result] = await pool.query(
+      'INSERT INTO toys (user_id, copy, is_wishlist, for_sale, hidden, name, manufacturer, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, `condition`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [userId, nextCopy, toy.is_wishlist, toy.for_sale, toy.hidden, toy.name, toy.manufacturer, toy.series, toy.sub_series, toy.theme, toy.toyline, toy.year, toy.cost, toy.value, toy.source, toy.notes, toy.condition]
+    );
+    const newToyId = result.insertId;
+
+    const [tagRows] = await pool.query('SELECT tag_id FROM toy_tags WHERE toy_id = ?', [id]);
+    if (tagRows.length) {
+      await pool.query('INSERT IGNORE INTO toy_tags (toy_id, tag_id) VALUES ?', [tagRows.map(row => [newToyId, row.tag_id])]);
+    }
+
+    const [accessoryRows] = await pool.query('SELECT name, has_accessory FROM toy_accessories WHERE toy_id = ?', [id]);
+    if (accessoryRows.length) {
+      await pool.query('INSERT INTO toy_accessories (toy_id, name, has_accessory) VALUES ?', [accessoryRows.map(row => [newToyId, row.name, row.has_accessory])]);
+    }
+
+    res.json({ ok: true, id: newToyId });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Move a wishlist toy into the user's collection without changing its details.
 router.patch('/:id/move-to-collection', authenticate, async (req, res) => {
   const userId = req.user.id;

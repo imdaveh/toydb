@@ -19,8 +19,10 @@ export default function Admin(){
   const [newTagName, setNewTagName] = useState('')
   const [tagsBusy, setTagsBusy] = useState(false)
   const [orphanPhotoCount, setOrphanPhotoCount] = useState(0)
+  const [orphanPhotoFiles, setOrphanPhotoFiles] = useState([])
   const [orphanPhotoError, setOrphanPhotoError] = useState(null)
   const [orphanPhotoBusy, setOrphanPhotoBusy] = useState(false)
+  const [showOrphanPhotoPreview, setShowOrphanPhotoPreview] = useState(false)
 
   async function getToken(){
     if (accessToken) return accessToken
@@ -93,10 +95,35 @@ export default function Admin(){
         return
       }
       setOrphanPhotoCount(data.orphanCount || 0)
+      setOrphanPhotoFiles(data.files || [])
       setOrphanPhotoError(null)
     } catch (err) {
       setOrphanPhotoError('Unable to reach the ToyDB server.')
     }
+  }
+
+  async function deleteOrphanPhoto(filename){
+    if (!window.confirm(`Delete orphaned photo ${filename}?`)) return
+    setOrphanPhotoBusy(true)
+    setOrphanPhotoError(null)
+    try {
+      const token = await getToken()
+      if (!token) return navigate('/')
+      const response = await fetch(import.meta.env.VITE_API_BASE + '/admin/photos/orphans/' + encodeURIComponent(filename), {
+        method: 'DELETE',
+        headers: { Authorization: 'Bearer ' + token }
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        setOrphanPhotoError(data.error || 'Unable to delete orphaned photo')
+        return
+      }
+      setOrphanPhotoFiles(current => current.filter(file => file !== filename))
+      setOrphanPhotoCount(current => Math.max(0, current - 1))
+    } catch (err) {
+      setOrphanPhotoError('Unable to reach the ToyDB server.')
+    }
+    setOrphanPhotoBusy(false)
   }
 
   useEffect(() => { loadUsers(); loadTags(); loadOrphanPhotoCount() }, [])
@@ -208,6 +235,7 @@ export default function Admin(){
         setOrphanPhotoError(data.error || 'Unable to clean up orphaned files')
       } else {
         setOrphanPhotoCount(0)
+        setOrphanPhotoFiles([])
       }
     } catch (err) {
       setOrphanPhotoError('Unable to reach the ToyDB server.')
@@ -345,12 +373,34 @@ export default function Admin(){
         <h3 className="text-lg font-bold text-toydb-navy">Photo cleanup</h3>
         <div className="flex items-center gap-3">
           <span className="rounded-full bg-toydb-cream px-3 py-1 text-sm font-semibold text-toydb-navy">Orphaned files: {orphanPhotoCount}</span>
+          <button type="button" disabled={orphanPhotoBusy || orphanPhotoCount === 0} onClick={() => setShowOrphanPhotoPreview(current => !current)} className="rounded-lg border border-toydb-teal px-3 py-2 text-sm font-medium text-toydb-teal-dark hover:bg-toydb-teal-pale disabled:cursor-not-allowed disabled:opacity-50">
+            {showOrphanPhotoPreview ? 'Hide preview' : 'Preview orphaned files'}
+          </button>
           <button type="button" disabled={orphanPhotoBusy || orphanPhotoCount === 0} onClick={cleanupOrphanedPhotos} className="rounded-lg border border-toydb-orange px-3 py-2 text-sm font-medium text-toydb-orange-dark hover:bg-toydb-orange-pale disabled:cursor-not-allowed disabled:opacity-50">
             {orphanPhotoBusy ? 'Cleaning...' : 'Cleanup orphaned files'}
           </button>
         </div>
       </div>
       {orphanPhotoError && <div className="bg-toydb-danger-pale p-3 text-toydb-danger">{orphanPhotoError}</div>}
+      {showOrphanPhotoPreview && (
+        <div className="rounded-xl border border-toydb-border bg-toydb-white p-3">
+          {orphanPhotoFiles.length === 0 ? (
+            <div className="text-sm text-toydb-slate">No orphaned photos to preview.</div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+              {orphanPhotoFiles.map(filename => (
+                <div key={filename} className="overflow-hidden rounded-lg border border-toydb-border bg-toydb-cream">
+                  <img src={import.meta.env.VITE_API_BASE + '/uploads/' + encodeURIComponent(filename)} alt={filename} className="h-28 w-full object-cover" />
+                  <div className="flex items-center justify-between gap-2 p-2">
+                    <span className="truncate text-[11px] text-toydb-slate" title={filename}>{filename}</span>
+                    <button type="button" disabled={orphanPhotoBusy} onClick={() => deleteOrphanPhoto(filename)} className="rounded border border-toydb-danger px-2 py-1 text-[10px] font-medium text-toydb-danger hover:bg-toydb-danger-pale disabled:cursor-not-allowed disabled:opacity-50">Delete</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </section>
   </div>
 }

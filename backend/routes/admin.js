@@ -136,6 +136,34 @@ router.get('/photos/orphans', async (req, res) => {
   }
 });
 
+router.delete('/photos/orphans/:filename', async (req, res) => {
+  const filename = req.params.filename;
+  if (!filename || filename.includes('..') || filename.includes('/')) {
+    return res.status(400).json({ error: 'Invalid photo filename' });
+  }
+
+  try {
+    const orphanFiles = await getOrphanedPhotoFiles();
+    if (!orphanFiles.includes(filename)) {
+      return res.status(404).json({ error: 'Orphaned photo not found' });
+    }
+
+    const filePath = path.join(uploadsDir, filename);
+    const thumbPath = path.join(uploadsDir, filename.replace(/(\.[^.]+)$/, '-thumb.webp'));
+
+    try { await fs.promises.unlink(filePath); } catch (err) {
+      console.error('Delete orphaned photo file error:', err);
+      return res.status(500).json({ error: 'Unable to delete photo file' });
+    }
+
+    try { await fs.promises.unlink(thumbPath); } catch (err) {}
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Delete orphaned photo error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 router.post('/photos/orphans/cleanup', async (req, res) => {
   try {
     const orphanFiles = await getOrphanedPhotoFiles();
