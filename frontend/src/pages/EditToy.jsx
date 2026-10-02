@@ -45,12 +45,12 @@ export default function EditToy(){
   const suggestionContext = {}
   const dashboardScope = location.state?.from?.state || location.state || {}
   for (const step of dashboardScope.selectedGroupPath || []) {
-    if (step && ['manufacturer', 'toyline', 'series', 'sub_series', 'theme', 'year'].includes(step.field)) {
+    if (step && ['manufacturer', 'toyline', 'series', 'sub_series', 'theme', 'type', 'year'].includes(step.field)) {
       suggestionContext[step.field] = step.value
     }
   }
   for (const filter of dashboardScope.appliedFilters || []) {
-    if (filter && ['manufacturer', 'toyline', 'series', 'sub_series', 'theme', 'year'].includes(filter.field)) {
+    if (filter && ['manufacturer', 'toyline', 'series', 'sub_series', 'theme', 'type', 'year'].includes(filter.field)) {
       suggestionContext[filter.field] = filter.value
     }
   }
@@ -62,7 +62,8 @@ export default function EditToy(){
     toyline: form.toyline,
     series: form.series,
     sub_series: form.sub_series,
-    theme: form.theme
+    theme: form.theme,
+    type: form.type
   })
   const allTags = useTags()
 
@@ -97,7 +98,7 @@ export default function EditToy(){
       setToy(data.toy)
       setForm({
         name: data.toy.name || '', copy: data.toy.copy ?? 1, manufacturer: data.toy.manufacturer || '', series: data.toy.series || '',
-        sub_series: data.toy.sub_series || '', theme: data.toy.theme || '', toyline: data.toy.toyline || '', year: data.toy.year || '',
+        sub_series: data.toy.sub_series || '', theme: data.toy.theme || '', type: data.toy.type || '', toyline: data.toy.toyline || '', year: data.toy.year || '',
         notes: data.toy.notes || '', condition: data.toy.condition || '', tagIds: (data.toy.tags || []).map(tag => tag.id), cost: data.toy.cost || '',
         value: data.toy.value || '', source: data.toy.source || '', for_sale: Boolean(data.toy.for_sale), hidden: Boolean(data.toy.hidden),
         accessories: normalizeAccessoryList(data.toy.accessories || [])
@@ -663,6 +664,7 @@ export default function EditToy(){
         <Field label="Series"><AutocompleteInput value={form.series} suggestions={suggestions.series} onChange={value => updateField('series', value)} /></Field>
         <Field label="Sub-series"><AutocompleteInput value={form.sub_series} suggestions={suggestions.sub_series} onChange={value => updateField('sub_series', value)} /></Field>
         <Field label="Theme"><AutocompleteInput value={form.theme} suggestions={suggestions.theme} onChange={value => updateField('theme', value)} /></Field>
+        <Field label="Type"><AutocompleteInput value={form.type} suggestions={suggestions.type} onChange={value => updateField('type', value)} /></Field>
         <div className="grid grid-cols-2 gap-2">
           <Field label="Condition" className="min-w-0"><Select value={form.condition} values={conditions} onChange={value => updateField('condition', value)} /></Field>
           <Field label="Copy" className="min-w-0"><input value={form.copy ?? 1} onChange={event => updateField('copy', event.target.value)} type="number" min="1" step="1" className="w-full p-2 border rounded" /></Field>

@@ -94,7 +94,8 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
   const groupings = {
     toyline: { label: 'Toylines', field: 'toyline' },
     manufacturer: { label: 'Manufacturers', field: 'manufacturer' },
-    year: { label: 'Years', field: 'year' }
+    year: { label: 'Years', field: 'year' },
+    type: { label: 'Types', field: 'type' }
   }
   const activeGrouping = groupings[grouping]
   const groups = groupToysByField(toys, activeGrouping.field).filter(([label]) => label !== 'Uncategorized')
@@ -127,7 +128,8 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
     year: 'Year',
     series: 'Series',
     sub_series: 'Sub-Series',
-    theme: 'Theme'
+    theme: 'Theme',
+    type: 'Type'
   }
   const filterValues = filterField === 'tag'
     ? [...new Set(filterSuggestionScope.flatMap(toy => (toy.tags || []).map(tag => tag.name)))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
@@ -164,6 +166,7 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
       String(toy.series || ''),
       String(toy.sub_series || ''),
       String(toy.theme || ''),
+      String(toy.type || ''),
       String(toy.condition || ''),
       String(toy.notes || ''),
       ...(toy.tags || []).map(tag => String(tag?.name || ''))
@@ -474,7 +477,7 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
             <div className="flex gap-2"><button type="button" onClick={applySearch} disabled={!searchDraft.trim()} className="bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white hover:bg-toydb-teal-dark disabled:cursor-not-allowed disabled:opacity-60">Apply</button><button type="button" onClick={clearSearch} className="border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-medium text-toydb-navy hover:bg-toydb-cream">Clear</button></div>
           </div>}
           {filterOpen && <div className="grid gap-3 border border-toydb-border bg-toydb-white p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
-            <label className="block text-sm font-medium text-toydb-navy">Filter by<select value={filterField} onChange={event => changeFilterField(event.target.value)} className="mt-1 w-full p-2"><option value="tag">Tag</option><option value="condition">Condition</option><option value="manufacturer">Manufacturer</option><option value="toyline">Toyline</option><option value="year">Year</option><option value="series">Series</option><option value="sub_series">Sub-Series</option><option value="theme">Theme</option></select></label>
+            <label className="block text-sm font-medium text-toydb-navy">Filter by<select value={filterField} onChange={event => changeFilterField(event.target.value)} className="mt-1 w-full p-2"><option value="tag">Tag</option><option value="condition">Condition</option><option value="manufacturer">Manufacturer</option><option value="toyline">Toyline</option><option value="year">Year</option><option value="series">Series</option><option value="sub_series">Sub-Series</option><option value="theme">Theme</option><option value="type">Type</option></select></label>
             <label className="block text-sm font-medium text-toydb-navy">Value<select value={filterValue} onChange={event => setFilterValue(event.target.value)} className="mt-1 w-full p-2"><option value="">Select a value</option>{filterValues.map(value => <option key={value} value={value}>{value}</option>)}</select></label>
             <div className="flex gap-2"><button type="button" onClick={applyFilter} disabled={!filterValue} className="bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white hover:bg-toydb-teal-dark disabled:cursor-not-allowed disabled:opacity-60">Add filter</button>{appliedFilters.length > 0 && <button type="button" onClick={clearAppliedFilters} className="border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-medium text-toydb-navy hover:bg-toydb-cream">Clear all</button>}</div>
           </div>}
@@ -549,7 +552,7 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
             <div className="flex gap-2"><button type="button" onClick={applySearch} disabled={!searchDraft.trim()} className="bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white hover:bg-toydb-teal-dark disabled:cursor-not-allowed disabled:opacity-60">Apply</button><button type="button" onClick={clearSearch} className="border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-medium text-toydb-navy hover:bg-toydb-cream">Clear</button></div>
           </div>}
           {filterOpen && <div className="grid gap-3 border border-toydb-border bg-toydb-white p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
-            <label className="block text-sm font-medium text-toydb-navy">Filter by<select value={filterField} onChange={event => changeFilterField(event.target.value)} className="mt-1 w-full p-2"><option value="tag">Tag</option><option value="condition">Condition</option><option value="manufacturer">Manufacturer</option><option value="toyline">Toyline</option><option value="year">Year</option><option value="series">Series</option><option value="sub_series">Sub-Series</option><option value="theme">Theme</option></select></label>
+            <label className="block text-sm font-medium text-toydb-navy">Filter by<select value={filterField} onChange={event => changeFilterField(event.target.value)} className="mt-1 w-full p-2"><option value="tag">Tag</option><option value="condition">Condition</option><option value="manufacturer">Manufacturer</option><option value="toyline">Toyline</option><option value="year">Year</option><option value="series">Series</option><option value="sub_series">Sub-Series</option><option value="theme">Theme</option><option value="type">Type</option></select></label>
             <label className="block text-sm font-medium text-toydb-navy">Value<select value={filterValue} onChange={event => setFilterValue(event.target.value)} className="mt-1 w-full p-2"><option value="">Select a value</option>{filterValues.map(value => <option key={value} value={value}>{value}</option>)}</select></label>
             <div className="flex gap-2"><button type="button" onClick={applyFilter} disabled={!filterValue} className="bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white hover:bg-toydb-teal-dark disabled:cursor-not-allowed disabled:opacity-60">Add filter</button>{appliedFilters.length > 0 && <button type="button" onClick={clearAppliedFilters} className="border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-medium text-toydb-navy hover:bg-toydb-cream">Clear all</button>}</div>
           </div>}

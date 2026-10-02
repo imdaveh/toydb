@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
+import { getNextToyWithPhotoInScope } from '../utils/toyPhotoNavigation.mjs'
+
 export default function ToyCard({ toy, allowDelete = false, onDeleted, returnState = null, deleteLabel = 'Delete', readOnly = false, scopeToys = [] }){
   const navigate = useNavigate()
   const location = useLocation()
@@ -23,7 +25,7 @@ export default function ToyCard({ toy, allowDelete = false, onDeleted, returnSta
     Poor: 'bg-toydb-danger-pale text-toydb-danger',
     Broken: 'bg-toydb-border text-toydb-navy'
   }
-  const metaLine = [toy.series, toy.sub_series, toy.theme, toy.year, toy.manufacturer].filter(value => value !== null && value !== undefined && String(value).trim()).join(' • ')
+  const metaLine = [toy.series, toy.sub_series, toy.theme, toy.type, toy.year, toy.manufacturer].filter(value => value !== null && value !== undefined && String(value).trim()).join(' • ')
 
   useEffect(() => {
     if (!isPhotoOpen) return
@@ -54,11 +56,7 @@ export default function ToyCard({ toy, allowDelete = false, onDeleted, returnSta
   }
 
   function goToNextToyInScope(direction) {
-    if (!Array.isArray(scopeToys) || scopeToys.length <= 1) return
-    const currentIndex = scopeToys.findIndex(item => item.id === viewerToy?.id)
-    const safeIndex = currentIndex >= 0 ? currentIndex : 0
-    const nextIndex = (safeIndex + direction + scopeToys.length) % scopeToys.length
-    const nextToy = scopeToys[nextIndex]
+    const nextToy = getNextToyWithPhotoInScope(scopeToys, viewerToy?.id, direction)
     if (!nextToy) return
     openPhoto(nextToy, 0)
   }

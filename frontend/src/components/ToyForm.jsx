@@ -14,6 +14,7 @@ function buildFormState(initialValues = {}, hiddenValue = false) {
     series: initialValues.series || '',
     sub_series: initialValues.sub_series || '',
     theme: initialValues.theme || '',
+    type: initialValues.type || '',
     toyline: initialValues.toyline || '',
     year: initialValues.year !== undefined && initialValues.year !== null && initialValues.year !== '' ? String(initialValues.year) : '',
     notes: '',
@@ -40,6 +41,7 @@ export default function ToyForm({ wishlist = false, hidden = false, initialValue
     series: form.series,
     sub_series: form.sub_series,
     theme: form.theme,
+    type: form.type,
     year: form.year
   })
   const allTags = useTags()
@@ -105,6 +107,7 @@ export default function ToyForm({ wishlist = false, hidden = false, initialValue
       <Field label="Series"><AutocompleteInput value={form.series} suggestions={suggestions.series} onChange={value => updateField('series', value)} /></Field>
       <Field label="Sub-series"><AutocompleteInput value={form.sub_series} suggestions={suggestions.sub_series} onChange={value => updateField('sub_series', value)} /></Field>
       <Field label="Theme"><AutocompleteInput value={form.theme} suggestions={suggestions.theme} onChange={value => updateField('theme', value)} /></Field>
+      <Field label="Type"><AutocompleteInput value={form.type} suggestions={suggestions.type} onChange={value => updateField('type', value)} /></Field>
       <div className="grid grid-cols-2 gap-2">
         <Field label="Condition" className="min-w-0"><Select value={form.condition} options={conditions} onChange={value => updateField('condition', value)} /></Field>
         <Field label="Copy" className="min-w-0"><input value={form.copy} onChange={event => updateField('copy', event.target.value)} type="number" min="1" step="1" className="w-full p-2 border rounded" /></Field>

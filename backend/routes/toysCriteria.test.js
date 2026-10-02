@@ -15,3 +15,13 @@ test('normalizeBulkCriteria keeps valid field/value rules and removes empties', 
     { field: 'year', value: '2024' }
   ]);
 });
+
+test('allowed toy criteria include type for bulk filters and exports', () => {
+  const result = toysRouter.buildCriteriaClauses([
+    { field: 'type', value: 'Action Figure' }
+  ]);
+
+  assert.deepEqual(result.normalizedCriteria, [{ field: 'type', value: 'Action Figure' }]);
+  assert.deepEqual(result.whereClauses, ['t.type = ?']);
+  assert.deepEqual(result.params, ['Action Figure']);
+});

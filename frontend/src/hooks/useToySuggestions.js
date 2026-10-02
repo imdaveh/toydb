@@ -29,7 +29,7 @@ export default function useToySuggestions(context = {}){
 
     loadSuggestions()
     return () => { cancelled = true }
-  }, [context.manufacturer, context.toyline, context.series, context.sub_series, context.theme])
+  }, [context.manufacturer, context.toyline, context.series, context.sub_series, context.theme, context.type, context.year])
 
   return suggestions
 }

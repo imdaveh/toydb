@@ -314,9 +314,9 @@ export default function Account(){
       .filter(row => row.field && String(row.value ?? '').trim())
   }
 
-  const canDeleteBulkToys = Boolean(bulkPreview) && !bulkDeleteBusy && !!getBulkCriteriaPayload().length
+  const canApplyBulkAction = Boolean(bulkPreview) && !bulkDeleteBusy && !!getBulkCriteriaPayload().length
 
-  async function previewBulkDelete(){
+  async function previewBulkAction(action = 'delete'){
     const criteria = getBulkCriteriaPayload()
     if (!criteria.length) {
       setBulkDeleteError('Choose at least one field/value pair to preview.')
@@ -329,33 +329,40 @@ export default function Account(){
     try {
       const token = await getToken()
       if (!token) { navigate('/'); return }
-      const response = await fetch(import.meta.env.VITE_API_BASE + '/toys/bulk-delete', {
+      const response = await fetch(import.meta.env.VITE_API_BASE + '/toys/bulk-update', {
         method: 'POST',
         headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ criteria, preview: true })
+        body: JSON.stringify({ criteria, preview: true, action })
       })
       const data = await response.json()
       if (!response.ok) {
         setBulkDeleteError(data.error || 'Unable to preview matching toys')
         return
       }
-      setBulkPreview({ total: data.total || 0, matches: data.matches || [] })
-      setBulkDeleteSuccess(data.total ? `Previewing ${data.total} matching toy${data.total === 1 ? '' : 's'}.` : 'No toys match those criteria.')
+      setBulkPreview({ action: data.action || action, total: data.total || 0, matches: data.matches || [] })
+      const actionLabel = data.action === 'hide' ? 'hidden' : data.action === 'mark_for_sale' ? 'marked for sale' : 'deleted'
+      setBulkDeleteSuccess(data.total ? `Previewing ${data.total} matching toy${data.total === 1 ? '' : 's'} to be ${actionLabel}.` : 'No toys match those criteria.')
     } catch (error) {
       setBulkDeleteError('Unable to reach the ToyDB server')
     }
     setBulkPreviewBusy(false)
   }
 
-  async function bulkDeleteMatchingToys(){
+  async function bulkApplyAction(action = 'delete'){
     const criteria = getBulkCriteriaPayload()
     if (!criteria.length) {
-      setBulkDeleteError('Choose at least one field/value pair to delete.')
+      setBulkDeleteError('Choose at least one field/value pair to update.')
       return
     }
 
     const summary = criteria.map(row => `${row.field} = "${row.value}"`).join(' AND ')
-    if (!window.confirm(`Delete all toys in your collection matching: ${summary}? This cannot be undone.`)) return
+    const actionText = {
+      delete: `Delete all toys in your collection matching: ${summary}? This cannot be undone.`,
+      hide: `Hide all toys in your collection matching: ${summary}?`,
+      mark_for_sale: `Mark all toys in your collection matching: ${summary} as for sale?`
+    }[action] || `Apply this bulk action to toys matching: ${summary}?`
+
+    if (!window.confirm(actionText)) return
 
     setBulkDeleteBusy(true)
     setBulkDeleteError(null)
@@ -365,17 +372,24 @@ export default function Account(){
     try {
       const token = await getToken()
       if (!token) { navigate('/'); return }
-      const response = await fetch(import.meta.env.VITE_API_BASE + '/toys/bulk-delete', {
+      const response = await fetch(import.meta.env.VITE_API_BASE + '/toys/bulk-update', {
         method: 'POST',
         headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ criteria })
+        body: JSON.stringify({ criteria, action })
       })
       const data = await response.json()
       if (!response.ok) {
-        setBulkDeleteError(data.error || 'Unable to delete matching toys')
+        setBulkDeleteError(data.error || 'Unable to update matching toys')
         return
       }
-      setBulkDeleteSuccess(`Deleted ${data.deleted} matching toy${data.deleted === 1 ? '' : 's'}.`)
+
+      const updatedCount = data.deleted ?? data.updated ?? 0
+      const actionSuccess = {
+        hide: `Marked ${updatedCount} matching toy${updatedCount === 1 ? '' : 's'} as hidden.`,
+        mark_for_sale: `Marked ${updatedCount} matching toy${updatedCount === 1 ? '' : 's'} for sale.`,
+        delete: `Deleted ${updatedCount} matching toy${updatedCount === 1 ? '' : 's'}.`
+      }[action] || `Updated ${updatedCount} matching toy${updatedCount === 1 ? '' : 's'}.`
+      setBulkDeleteSuccess(actionSuccess)
       setBulkCriteria(createBulkDeleteCriteria())
       setBulkPreview(null)
       setBulkDeleteError(null)
@@ -530,7 +544,7 @@ export default function Account(){
       <div className="space-y-4 border border-toydb-danger/60 bg-toydb-white p-4 shadow-sm">
         <div>
           <h3 className="font-bold text-toydb-danger">Danger Zone</h3>
-          <p className="mt-1 text-sm text-toydb-slate">Bulk delete toys from your collection using one or more field/value matches.</p>
+          <p className="mt-1 text-sm text-toydb-slate">Bulk update toys in your collection using one or more field/value matches.</p>
         </div>
         {bulkDeleteError && <div className="bg-toydb-danger-pale p-3 text-toydb-danger">{bulkDeleteError}</div>}
         {bulkDeleteSuccess && <div className="bg-toydb-teal-pale p-3 text-toydb-teal-dark">{bulkDeleteSuccess}</div>}
@@ -549,6 +563,7 @@ export default function Account(){
                     <option value="series">Series</option>
                     <option value="sub_series">Sub-Series</option>
                     <option value="theme">Theme</option>
+                    <option value="type">Type</option>
                     <option value="condition">Condition</option>
                     <option value="year">Year</option>
                   </select>
@@ -579,17 +594,27 @@ export default function Account(){
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={previewBulkDelete} disabled={bulkPreviewBusy || !getBulkCriteriaPayload().length} className="rounded-lg border border-toydb-orange bg-toydb-orange p-2 font-medium text-toydb-white hover:bg-toydb-orange-dark disabled:cursor-not-allowed disabled:opacity-60">
+          <button type="button" onClick={() => previewBulkAction('delete')} disabled={bulkPreviewBusy || !getBulkCriteriaPayload().length} className="rounded-lg border border-toydb-orange bg-toydb-orange p-2 font-medium text-toydb-white hover:bg-toydb-orange-dark disabled:cursor-not-allowed disabled:opacity-60">
             {bulkPreviewBusy ? 'Previewing...' : 'Preview matches'}
           </button>
-          <button type="button" onClick={bulkDeleteMatchingToys} disabled={!canDeleteBulkToys} className="rounded-lg border border-toydb-danger bg-toydb-danger p-2 font-bold text-toydb-white hover:bg-toydb-danger/90 disabled:cursor-not-allowed disabled:opacity-60">
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => bulkApplyAction('hide')} disabled={!canApplyBulkAction} className="rounded-lg border border-toydb-teal bg-toydb-teal p-2 font-medium text-toydb-white hover:bg-toydb-teal-dark disabled:cursor-not-allowed disabled:opacity-60">
+              {bulkDeleteBusy ? 'Hiding...' : 'Mark as Hidden'}
+            </button>
+            <button type="button" onClick={() => bulkApplyAction('mark_for_sale')} disabled={!canApplyBulkAction} className="rounded-lg border border-toydb-orange bg-toydb-orange p-2 font-medium text-toydb-white hover:bg-toydb-orange-dark disabled:cursor-not-allowed disabled:opacity-60">
+              {bulkDeleteBusy ? 'Updating...' : 'Mark for Sale'}
+            </button>
+          </div>
+          <button type="button" onClick={() => bulkApplyAction('delete')} disabled={!canApplyBulkAction} className="rounded-lg border border-toydb-danger bg-toydb-danger p-2 font-bold text-toydb-white hover:bg-toydb-danger/90 disabled:cursor-not-allowed disabled:opacity-60">
             {bulkDeleteBusy ? 'Deleting...' : 'Delete Matching Toys (Dangerous)'}
           </button>
         </div>
 
         {bulkPreview && (
           <div className="rounded-lg border border-toydb-border bg-toydb-cream p-3">
-            <div className="mb-2 text-sm font-medium text-toydb-navy">{bulkPreview.total} record{bulkPreview.total === 1 ? '' : 's'} will be deleted</div>
+            <div className="mb-2 text-sm font-medium text-toydb-navy">
+              {bulkPreview.total} record{bulkPreview.total === 1 ? '' : 's'} will be {bulkPreview.action === 'hide' ? 'hidden' : bulkPreview.action === 'mark_for_sale' ? 'marked for sale' : 'deleted'}
+            </div>
             <ul className="max-h-52 space-y-1 overflow-auto text-sm text-toydb-slate">
               {bulkPreview.matches.length === 0 && <li>No matches found.</li>}
               {bulkPreview.matches.map(toy => (
