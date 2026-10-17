@@ -45,12 +45,12 @@ export default function EditToy(){
   const suggestionContext = {}
   const dashboardScope = location.state?.from?.state || location.state || {}
   for (const step of dashboardScope.selectedGroupPath || []) {
-    if (step && ['manufacturer', 'toyline', 'series', 'sub_series', 'theme', 'type', 'year'].includes(step.field)) {
+    if (step && ['manufacturer', 'release', 'faction', 'toyline', 'series', 'sub_series', 'theme', 'type', 'year'].includes(step.field)) {
       suggestionContext[step.field] = step.value
     }
   }
   for (const filter of dashboardScope.appliedFilters || []) {
-    if (filter && ['manufacturer', 'toyline', 'series', 'sub_series', 'theme', 'type', 'year'].includes(filter.field)) {
+    if (filter && ['manufacturer', 'release', 'faction', 'toyline', 'series', 'sub_series', 'theme', 'type', 'year'].includes(filter.field)) {
       suggestionContext[filter.field] = filter.value
     }
   }
@@ -59,6 +59,8 @@ export default function EditToy(){
   const suggestions = useToySuggestions({
     ...suggestionContext,
     manufacturer: form.manufacturer,
+    release: form.release,
+    faction: form.faction,
     toyline: form.toyline,
     series: form.series,
     sub_series: form.sub_series,
@@ -97,7 +99,7 @@ export default function EditToy(){
       if (!response.ok) { setError(data.error || 'Failed'); return }
       setToy(data.toy)
       setForm({
-        name: data.toy.name || '', copy: data.toy.copy ?? 1, manufacturer: data.toy.manufacturer || '', series: data.toy.series || '',
+        name: data.toy.name || '', copy: data.toy.copy ?? 1, manufacturer: data.toy.manufacturer || '', release: data.toy.release || '', faction: data.toy.faction || '', manufacturer_id: data.toy.manufacturer_id || '', series: data.toy.series || '',
         sub_series: data.toy.sub_series || '', theme: data.toy.theme || '', type: data.toy.type || '', toyline: data.toy.toyline || '', year: data.toy.year || '',
         notes: data.toy.notes || '', condition: data.toy.condition || '', tagIds: (data.toy.tags || []).map(tag => tag.id), cost: data.toy.cost || '',
         value: data.toy.value || '', source: data.toy.source || '', for_sale: Boolean(data.toy.for_sale), hidden: Boolean(data.toy.hidden),
@@ -658,12 +660,19 @@ export default function EditToy(){
     <div className="space-y-4">
       <h2 className="text-lg font-bold">Edit: {toy.name}</h2>
       <div className="p-4 bg-toydb-white border border-toydb-border rounded-xl shadow-sm space-y-2">
-        <Field label="Name"><input value={form.name} onChange={event => updateField('name', event.target.value)} className="w-full p-2 border rounded" /></Field>
+        <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,0.28fr)] gap-2">
+          <Field label="Name"><input value={form.name} onChange={event => updateField('name', event.target.value)} className="w-full p-2 border rounded" /></Field>
+          <Field label="ID"><input value={form.manufacturer_id} onChange={event => updateField('manufacturer_id', event.target.value)} className="w-full p-2 border rounded" /></Field>
+        </div>
         <div className="flex gap-2"><Field label="Year" className="w-24"><input value={form.year} onChange={event => updateField('year', event.target.value)} type="number" min="1800" max="2100" className="w-full p-2 border rounded" /></Field><Field label="Manufacturer" className="flex-1"><AutocompleteInput value={form.manufacturer} suggestions={suggestions.manufacturer} onChange={value => updateField('manufacturer', value)} /></Field></div>
         <Field label="Toyline"><AutocompleteInput value={form.toyline} suggestions={suggestions.toyline} onChange={value => updateField('toyline', value)} /></Field>
         <Field label="Series"><AutocompleteInput value={form.series} suggestions={suggestions.series} onChange={value => updateField('series', value)} /></Field>
         <Field label="Sub-series"><AutocompleteInput value={form.sub_series} suggestions={suggestions.sub_series} onChange={value => updateField('sub_series', value)} /></Field>
         <Field label="Theme"><AutocompleteInput value={form.theme} suggestions={suggestions.theme} onChange={value => updateField('theme', value)} /></Field>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="Release"><AutocompleteInput value={form.release} suggestions={suggestions.release} onChange={value => updateField('release', value)} /></Field>
+          <Field label="Faction"><AutocompleteInput value={form.faction} suggestions={suggestions.faction} onChange={value => updateField('faction', value)} /></Field>
+        </div>
         <Field label="Type"><AutocompleteInput value={form.type} suggestions={suggestions.type} onChange={value => updateField('type', value)} /></Field>
         <div className="grid grid-cols-2 gap-2">
           <Field label="Condition" className="min-w-0"><Select value={form.condition} values={conditions} onChange={value => updateField('condition', value)} /></Field>

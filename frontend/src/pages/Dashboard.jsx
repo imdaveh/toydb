@@ -124,6 +124,8 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
     tag: 'Tag',
     condition: 'Condition',
     manufacturer: 'Manufacturer',
+    release: 'Release',
+    faction: 'Faction',
     toyline: 'Toyline',
     year: 'Year',
     series: 'Series',
@@ -140,6 +142,14 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
     const yearRight = right?.year === null || right?.year === undefined || right?.year === '' ? Number.MAX_SAFE_INTEGER : Number(right.year)
     if (yearLeft !== yearRight) return yearLeft - yearRight
 
+    const manufacturerLeft = String(left?.manufacturer ?? '').trim().toLowerCase()
+    const manufacturerRight = String(right?.manufacturer ?? '').trim().toLowerCase()
+    if (manufacturerLeft !== manufacturerRight) return manufacturerLeft.localeCompare(manufacturerRight)
+
+    const toylineLeft = String(left?.toyline ?? '').trim().toLowerCase()
+    const toylineRight = String(right?.toyline ?? '').trim().toLowerCase()
+    if (toylineLeft !== toylineRight) return toylineLeft.localeCompare(toylineRight)
+
     const seriesLeft = String(left?.series ?? '').trim().toLowerCase()
     const seriesRight = String(right?.series ?? '').trim().toLowerCase()
     if (seriesLeft !== seriesRight) return seriesLeft.localeCompare(seriesRight)
@@ -152,7 +162,23 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
     const themeRight = String(right?.theme ?? '').trim().toLowerCase()
     if (themeLeft !== themeRight) return themeLeft.localeCompare(themeRight)
 
-    return String(left?.name ?? '').trim().localeCompare(String(right?.name ?? '').trim(), undefined, { numeric: true, sensitivity: 'base' })
+    const releaseLeft = String(left?.release ?? '').trim().toLowerCase()
+    const releaseRight = String(right?.release ?? '').trim().toLowerCase()
+    if (releaseLeft !== releaseRight) return releaseLeft.localeCompare(releaseRight)
+
+    const typeLeft = String(left?.type ?? '').trim().toLowerCase()
+    const typeRight = String(right?.type ?? '').trim().toLowerCase()
+    if (typeLeft !== typeRight) return typeLeft.localeCompare(typeRight)
+
+    const factionLeft = String(left?.faction ?? '').trim().toLowerCase()
+    const factionRight = String(right?.faction ?? '').trim().toLowerCase()
+    if (factionLeft !== factionRight) return factionLeft.localeCompare(factionRight)
+
+    const nameLeft = String(left?.name ?? '').trim().toLowerCase()
+    const nameRight = String(right?.name ?? '').trim().toLowerCase()
+    if (nameLeft !== nameRight) return nameLeft.localeCompare(nameRight)
+
+    return (Number(left?.copy ?? 1) || 1) - (Number(right?.copy ?? 1) || 1)
   }
 
   function matchesSearch(toy){
@@ -162,6 +188,9 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
     const candidateValues = [
       String(toy.name || ''),
       String(toy.manufacturer || ''),
+      String(toy.release || ''),
+      String(toy.faction || ''),
+      String(toy.manufacturer_id || ''),
       String(toy.toyline || ''),
       String(toy.series || ''),
       String(toy.sub_series || ''),
@@ -477,7 +506,7 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
             <div className="flex gap-2"><button type="button" onClick={applySearch} disabled={!searchDraft.trim()} className="bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white hover:bg-toydb-teal-dark disabled:cursor-not-allowed disabled:opacity-60">Apply</button><button type="button" onClick={clearSearch} className="border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-medium text-toydb-navy hover:bg-toydb-cream">Clear</button></div>
           </div>}
           {filterOpen && <div className="grid gap-3 border border-toydb-border bg-toydb-white p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
-            <label className="block text-sm font-medium text-toydb-navy">Filter by<select value={filterField} onChange={event => changeFilterField(event.target.value)} className="mt-1 w-full p-2"><option value="tag">Tag</option><option value="condition">Condition</option><option value="manufacturer">Manufacturer</option><option value="toyline">Toyline</option><option value="year">Year</option><option value="series">Series</option><option value="sub_series">Sub-Series</option><option value="theme">Theme</option><option value="type">Type</option></select></label>
+            <label className="block text-sm font-medium text-toydb-navy">Filter by<select value={filterField} onChange={event => changeFilterField(event.target.value)} className="mt-1 w-full p-2"><option value="tag">Tag</option><option value="condition">Condition</option><option value="manufacturer">Manufacturer</option><option value="release">Release</option><option value="faction">Faction</option><option value="toyline">Toyline</option><option value="year">Year</option><option value="series">Series</option><option value="sub_series">Sub-Series</option><option value="theme">Theme</option><option value="type">Type</option></select></label>
             <label className="block text-sm font-medium text-toydb-navy">Value<select value={filterValue} onChange={event => setFilterValue(event.target.value)} className="mt-1 w-full p-2"><option value="">Select a value</option>{filterValues.map(value => <option key={value} value={value}>{value}</option>)}</select></label>
             <div className="flex gap-2"><button type="button" onClick={applyFilter} disabled={!filterValue} className="bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white hover:bg-toydb-teal-dark disabled:cursor-not-allowed disabled:opacity-60">Add filter</button>{appliedFilters.length > 0 && <button type="button" onClick={clearAppliedFilters} className="border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-medium text-toydb-navy hover:bg-toydb-cream">Clear all</button>}</div>
           </div>}
@@ -552,7 +581,7 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
             <div className="flex gap-2"><button type="button" onClick={applySearch} disabled={!searchDraft.trim()} className="bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white hover:bg-toydb-teal-dark disabled:cursor-not-allowed disabled:opacity-60">Apply</button><button type="button" onClick={clearSearch} className="border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-medium text-toydb-navy hover:bg-toydb-cream">Clear</button></div>
           </div>}
           {filterOpen && <div className="grid gap-3 border border-toydb-border bg-toydb-white p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
-            <label className="block text-sm font-medium text-toydb-navy">Filter by<select value={filterField} onChange={event => changeFilterField(event.target.value)} className="mt-1 w-full p-2"><option value="tag">Tag</option><option value="condition">Condition</option><option value="manufacturer">Manufacturer</option><option value="toyline">Toyline</option><option value="year">Year</option><option value="series">Series</option><option value="sub_series">Sub-Series</option><option value="theme">Theme</option><option value="type">Type</option></select></label>
+            <label className="block text-sm font-medium text-toydb-navy">Filter by<select value={filterField} onChange={event => changeFilterField(event.target.value)} className="mt-1 w-full p-2"><option value="tag">Tag</option><option value="condition">Condition</option><option value="manufacturer">Manufacturer</option><option value="release">Release</option><option value="faction">Faction</option><option value="toyline">Toyline</option><option value="year">Year</option><option value="series">Series</option><option value="sub_series">Sub-Series</option><option value="theme">Theme</option><option value="type">Type</option></select></label>
             <label className="block text-sm font-medium text-toydb-navy">Value<select value={filterValue} onChange={event => setFilterValue(event.target.value)} className="mt-1 w-full p-2"><option value="">Select a value</option>{filterValues.map(value => <option key={value} value={value}>{value}</option>)}</select></label>
             <div className="flex gap-2"><button type="button" onClick={applyFilter} disabled={!filterValue} className="bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white hover:bg-toydb-teal-dark disabled:cursor-not-allowed disabled:opacity-60">Add filter</button>{appliedFilters.length > 0 && <button type="button" onClick={clearAppliedFilters} className="border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-medium text-toydb-navy hover:bg-toydb-cream">Clear all</button>}</div>
           </div>}

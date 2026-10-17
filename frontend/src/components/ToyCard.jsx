@@ -25,7 +25,10 @@ export default function ToyCard({ toy, allowDelete = false, onDeleted, returnSta
     Poor: 'bg-toydb-danger-pale text-toydb-danger',
     Broken: 'bg-toydb-border text-toydb-navy'
   }
-  const metaLine = [toy.series, toy.sub_series, toy.theme, toy.type, toy.year, toy.manufacturer].filter(value => value !== null && value !== undefined && String(value).trim()).join(' • ')
+  const manufacturerId = toy.manufacturer_id ?? toy.manufacturerId ?? null
+  const titleText = [toy.name, manufacturerId ? `(${manufacturerId})` : null].filter(value => value !== null && value !== undefined && String(value).trim()).join(' ')
+  const detailsLine1 = [toy.year, toy.manufacturer, toy.toyline].filter(value => value !== null && value !== undefined && String(value).trim()).join(' • ')
+  const detailsLine2 = [toy.series, toy.sub_series, toy.theme, toy.release, toy.type, toy.faction].filter(value => value !== null && value !== undefined && String(value).trim()).join(' • ')
 
   useEffect(() => {
     if (!isPhotoOpen) return
@@ -112,13 +115,12 @@ export default function ToyCard({ toy, allowDelete = false, onDeleted, returnSta
       <div className="flex-1 flex flex-col">
         {actionError && <div className="mb-2 text-sm text-toydb-danger">{actionError}</div>}
         <div className="flex items-start justify-between gap-2">
-          <div className="font-bold text-toydb-navy line-clamp-2 break-words flex-1">{toy.name}</div>
+          <div className="font-bold text-toydb-navy line-clamp-2 break-words flex-1">{titleText || toy.name}</div>
           {toy.condition && <span className={`inline-block shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${conditionTone[toy.condition] || 'bg-toydb-cream text-toydb-slate'}`}>{toy.condition}</span>}
         </div>
 
-        {toy.toyline && <div className="mt-1 text-sm font-semibold text-toydb-navy"><span className="text-xs font-medium text-toydb-slate mr-1">Toyline:</span>{toy.toyline}</div>}
-
-        {metaLine && <div className="mt-1 text-xs text-toydb-slate">{metaLine}</div>}
+        {detailsLine1 && <div className="mt-1 text-xs text-toydb-slate">{detailsLine1}</div>}
+        {detailsLine2 && <div className="mt-1 text-xs text-toydb-slate">{detailsLine2}</div>}
 
         {Boolean(toy.for_sale) && (
           <div className="mt-2 inline-flex w-fit items-center rounded-full border border-toydb-orange bg-toydb-orange-pale px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-toydb-orange-dark">

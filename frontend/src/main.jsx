@@ -15,6 +15,7 @@ import Gallery from './pages/Gallery'
 import EditToy from './pages/EditToy'
 import Admin from './pages/Admin'
 import Account from './pages/Account'
+import Manage from './pages/Manage'
 
 import { registerSW } from 'virtual:pwa-register'
 
@@ -47,6 +48,7 @@ createRoot(document.getElementById('root')).render(
           <Route path="hidden/add" element={<AddToy hidden />} />
           <Route path="wishlist/add" element={<AddToy wishlist />} />
           <Route path="toys/:id/edit" element={<EditToy />} />
+          <Route path="manage" element={<Manage />} />
           <Route path="account" element={<Account />} />
           <Route path="admin" element={<Admin />} />
         </Route>

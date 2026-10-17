@@ -11,6 +11,9 @@ function buildFormState(initialValues = {}, hiddenValue = false) {
     name: '',
     copy: initialValues.copy !== undefined && initialValues.copy !== null && initialValues.copy !== '' ? String(initialValues.copy) : '1',
     manufacturer: initialValues.manufacturer || '',
+    release: initialValues.release || '',
+    faction: initialValues.faction || '',
+    manufacturer_id: initialValues.manufacturer_id || '',
     series: initialValues.series || '',
     sub_series: initialValues.sub_series || '',
     theme: initialValues.theme || '',
@@ -37,6 +40,8 @@ export default function ToyForm({ wishlist = false, hidden = false, initialValue
   const suggestions = useToySuggestions({
     ...suggestionContext,
     manufacturer: form.manufacturer,
+    release: form.release,
+    faction: form.faction,
     toyline: form.toyline,
     series: form.series,
     sub_series: form.sub_series,
@@ -101,12 +106,19 @@ export default function ToyForm({ wishlist = false, hidden = false, initialValue
   return (
     <form onSubmit={submit} className="space-y-3">
       {error && <div className="bg-toydb-danger-pale text-toydb-danger p-3 rounded-lg">{error}</div>}
-      <Field label="Name"><input required value={form.name} onChange={event => updateField('name', event.target.value)} className="w-full p-2 border rounded" /></Field>
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,0.28fr)] gap-2">
+        <Field label="Name"><input required value={form.name} onChange={event => updateField('name', event.target.value)} className="w-full p-2 border rounded" /></Field>
+        <Field label="ID"><input value={form.manufacturer_id} onChange={event => updateField('manufacturer_id', event.target.value)} className="w-full p-2 border rounded" /></Field>
+      </div>
       <div className="flex gap-2"><Field label="Year" className="w-24"><input value={form.year} onChange={event => updateField('year', event.target.value)} type="number" min="1800" max="2100" className="w-full p-2 border rounded" /></Field><Field label="Manufacturer" className="flex-1"><AutocompleteInput value={form.manufacturer} suggestions={suggestions.manufacturer} onChange={value => updateField('manufacturer', value)} /></Field></div>
       <Field label="Toyline"><AutocompleteInput value={form.toyline} suggestions={suggestions.toyline} onChange={value => updateField('toyline', value)} /></Field>
       <Field label="Series"><AutocompleteInput value={form.series} suggestions={suggestions.series} onChange={value => updateField('series', value)} /></Field>
       <Field label="Sub-series"><AutocompleteInput value={form.sub_series} suggestions={suggestions.sub_series} onChange={value => updateField('sub_series', value)} /></Field>
       <Field label="Theme"><AutocompleteInput value={form.theme} suggestions={suggestions.theme} onChange={value => updateField('theme', value)} /></Field>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Release"><AutocompleteInput value={form.release} suggestions={suggestions.release} onChange={value => updateField('release', value)} /></Field>
+        <Field label="Faction"><AutocompleteInput value={form.faction} suggestions={suggestions.faction} onChange={value => updateField('faction', value)} /></Field>
+      </div>
       <Field label="Type"><AutocompleteInput value={form.type} suggestions={suggestions.type} onChange={value => updateField('type', value)} /></Field>
       <div className="grid grid-cols-2 gap-2">
         <Field label="Condition" className="min-w-0"><Select value={form.condition} options={conditions} onChange={value => updateField('condition', value)} /></Field>

@@ -105,6 +105,7 @@ export default function App(){
                   <Link to="/gallery" className="font-medium text-toydb-cream hover:text-toydb-orange-light">Gallery</Link>
                   <Link to="/lists" className="font-medium text-toydb-cream hover:text-toydb-orange-light">Lists</Link>
                   <Link to="/account" className="font-medium text-toydb-cream hover:text-toydb-orange-light">Account</Link>
+                  <Link to="/manage" className="font-medium text-toydb-cream hover:text-toydb-orange-light">Manage</Link>
                   {user?.isAdmin && <Link to="/admin" className="font-medium text-toydb-cream hover:text-toydb-orange-light">Admin</Link>}
                   <button onClick={logout} className="font-medium text-toydb-cream hover:text-toydb-orange-light">Logout</button>
                 </nav>
@@ -114,6 +115,7 @@ export default function App(){
             {mobileMenuOpen && (
               <nav className="mt-4 flex flex-col gap-2 rounded-xl border border-toydb-navy-light bg-toydb-navy p-3 md:hidden">
                 <Link to="/account" onClick={() => setMobileMenuOpen(false)} className="rounded-lg px-2 py-2 font-medium text-toydb-cream hover:bg-toydb-navy-light hover:text-toydb-orange-light">Account</Link>
+                <Link to="/manage" onClick={() => setMobileMenuOpen(false)} className="rounded-lg px-2 py-2 font-medium text-toydb-cream hover:bg-toydb-navy-light hover:text-toydb-orange-light">Manage</Link>
                 {user?.isAdmin && <Link to="/admin" onClick={() => setMobileMenuOpen(false)} className="rounded-lg px-2 py-2 font-medium text-toydb-cream hover:bg-toydb-navy-light hover:text-toydb-orange-light">Admin</Link>}
                 <button type="button" onClick={() => { setMobileMenuOpen(false); logout(); }} className="rounded-lg px-2 py-2 text-left font-medium text-toydb-cream hover:bg-toydb-navy-light hover:text-toydb-orange-light">Logout</button>
               </nav>
