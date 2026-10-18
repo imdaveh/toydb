@@ -16,14 +16,10 @@ test('normalizeBulkCriteria keeps valid field/value rules and removes empties', 
   ]);
 });
 
-test('allowed toy criteria include type for bulk filters and exports', () => {
-  const result = toysRouter.buildCriteriaClauses([
+test('allowed toy criteria exclude the removed type field for bulk filters and exports', () => {
+  assert.throws(() => toysRouter.buildCriteriaClauses([
     { field: 'type', value: 'Action Figure' }
-  ]);
-
-  assert.deepEqual(result.normalizedCriteria, [{ field: 'type', value: 'Action Figure' }]);
-  assert.deepEqual(result.whereClauses, ['t.type = ?']);
-  assert.deepEqual(result.params, ['Action Figure']);
+  ]), /Invalid field: type/);
 });
 
 test('import copy resolution rejects duplicates from existing records and the same import batch', () => {
@@ -34,11 +30,10 @@ test('import copy resolution rejects duplicates from existing records and the sa
     series: '',
     sub_series: '',
     theme: '',
-    type: '',
     year: ''
   }];
 
-  const naturalKey = ['millennium falcon', 'lego', '', '', '', '', '', ''].join('||');
+  const naturalKey = ['millennium falcon', 'lego', '', '', '', '', ''].join('||');
 
   assert.deepEqual(toysRouter.resolveImportCopy(existingToys, naturalKey, new Map()), {
     shouldSkip: true,

@@ -45,7 +45,6 @@ CREATE TABLE IF NOT EXISTS toys (
   series VARCHAR(255),
   sub_series VARCHAR(255),
   theme VARCHAR(255),
-  type VARCHAR(255),
   `release_wave` VARCHAR(255),
   `faction` VARCHAR(255),
   `manufacturer_id` VARCHAR(255),

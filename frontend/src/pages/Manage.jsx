@@ -512,7 +512,6 @@ export default function Manage(){
                     <option value="series">Series</option>
                     <option value="sub_series">Sub-Series</option>
                     <option value="theme">Theme</option>
-                    <option value="type">Type</option>
                     <option value="condition">Condition</option>
                     <option value="year">Year</option>
                   </select>

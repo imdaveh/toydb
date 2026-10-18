@@ -28,7 +28,7 @@ export default function ToyCard({ toy, allowDelete = false, onDeleted, returnSta
   const manufacturerId = toy.manufacturer_id ?? toy.manufacturerId ?? null
   const titleText = [toy.name, manufacturerId ? `(${manufacturerId})` : null].filter(value => value !== null && value !== undefined && String(value).trim()).join(' ')
   const detailsLine1 = [toy.year, toy.manufacturer, toy.toyline].filter(value => value !== null && value !== undefined && String(value).trim()).join(' • ')
-  const detailsLine2 = [toy.series, toy.sub_series, toy.theme, toy.release, toy.type, toy.faction].filter(value => value !== null && value !== undefined && String(value).trim()).join(' • ')
+  const detailsLine2 = [toy.series, toy.sub_series, toy.theme, toy.release, toy.faction].filter(value => value !== null && value !== undefined && String(value).trim()).join(' • ')
 
   useEffect(() => {
     if (!isPhotoOpen) return

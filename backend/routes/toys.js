@@ -22,21 +22,8 @@ async function ensureToyPhotoSortOrderColumn() {
   }
 }
 
-async function ensureToyTypeColumn() {
-  try {
-    const [rows] = await pool.query('SHOW COLUMNS FROM toys LIKE ?', ['type']);
-    if (rows.length) return;
-    await pool.query('ALTER TABLE toys ADD COLUMN type VARCHAR(255) NULL AFTER theme');
-  } catch (error) {
-    console.error('Failed to ensure toys.type exists:', error.message);
-  }
-}
-
 ensureToyPhotoSortOrderColumn().catch(error => {
   console.error('Photo sort-order setup failed:', error.message);
-});
-ensureToyTypeColumn().catch(error => {
-  console.error('Toy type setup failed:', error.message);
 });
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -139,10 +126,6 @@ function sortToyCollection(rows) {
     const releaseRight = String(right?.release ?? '').trim().toLowerCase();
     if (releaseLeft !== releaseRight) return releaseLeft.localeCompare(releaseRight);
 
-    const typeLeft = String(left?.type ?? '').trim().toLowerCase();
-    const typeRight = String(right?.type ?? '').trim().toLowerCase();
-    if (typeLeft !== typeRight) return typeLeft.localeCompare(typeRight);
-
     const factionLeft = String(left?.faction ?? '').trim().toLowerCase();
     const factionRight = String(right?.faction ?? '').trim().toLowerCase();
     if (factionLeft !== factionRight) return factionLeft.localeCompare(factionRight);
@@ -166,7 +149,7 @@ const csvUpload = multer({
   }
 });
 
-const importColumns = ['name', 'manufacturer', 'release', 'faction', 'manufacturer_id', 'series', 'sub_series', 'theme', 'type', 'toyline', 'year', 'cost', 'value', 'source', 'notes', 'condition', 'tags', 'accessories', 'owned_accessories'];
+const importColumns = ['name', 'manufacturer_id', 'year', 'manufacturer', 'toyline', 'series', 'sub_series', 'theme', 'release_wave', 'faction', 'condition', 'notes', 'tags', 'accessories', 'owned_accessories', 'cost', 'value', 'source'];
 
 function normalizeCsvText(value) {
   return String(value ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
@@ -180,7 +163,6 @@ function buildToyNaturalKey(record = {}) {
     normalizeCsvText(record.series),
     normalizeCsvText(record.sub_series),
     normalizeCsvText(record.theme),
-    normalizeCsvText(record.type),
     normalizeCsvText(record.year)
   ].join('||');
 }
@@ -312,7 +294,7 @@ function parseCsv(text) {
   return rows.filter(r => !(r.length === 1 && r[0].trim() === ''));
 }
 
-const suggestionFields = ['manufacturer', 'release', 'faction', 'toyline', 'series', 'sub_series', 'theme', 'type', 'source'];
+const suggestionFields = ['manufacturer', 'release', 'faction', 'toyline', 'series', 'sub_series', 'theme', 'source'];
 
 // Return the current user's previous values for form autocomplete, filtered by the active form context.
 router.get('/suggestions', authenticate, async (req, res) => {
@@ -325,7 +307,6 @@ router.get('/suggestions', authenticate, async (req, res) => {
       series: req.query.series || '',
       sub_series: req.query.sub_series || '',
       theme: req.query.theme || '',
-      type: req.query.type || '',
       year: req.query.year || ''
     };
 
@@ -365,15 +346,15 @@ router.get('/suggestions', authenticate, async (req, res) => {
 // Create toy
 router.post('/', authenticate, upload.array('photos', 8), async (req, res) => {
   const userId = req.user.id;
-  const { name, manufacturer, release, faction, manufacturer_id, series, sub_series, theme, type, toyline, year, condition, cost, value, source, notes, wishlist, for_sale, hidden, tags, accessories, copy } = req.body || {};
+  const { name, manufacturer, release, faction, manufacturer_id, series, sub_series, theme, toyline, year, condition, cost, value, source, notes, wishlist, for_sale, hidden, tags, accessories, copy } = req.body || {};
   if (!name) return res.status(400).json({ error: 'Name is required' });
   const parsedCopy = copy === undefined || copy === null || copy === '' ? 1 : Number(copy);
   if (!Number.isInteger(parsedCopy) || parsedCopy < 1) return res.status(400).json({ error: 'Copy must be a positive whole number' });
   try {
     const photos = await preparePhotos(req.files || []);
     const [result] = await pool.query(
-      'INSERT INTO toys (user_id, copy, is_wishlist, for_sale, hidden, name, manufacturer, `release_wave`, `faction`, `manufacturer_id`, series, sub_series, theme, type, toyline, `year`, cost, `value`, source, notes, `condition`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [userId, parsedCopy, wishlist === 'true' || wishlist === true, for_sale === 'true' || for_sale === true, hidden === 'true' || hidden === true, name, manufacturer || null, release || null, faction || null, manufacturer_id || null, series || null, sub_series || null, theme || null, type || null, toyline || null, year ? parseInt(year) : null, cost ? parseFloat(cost) : null, value ? parseFloat(value) : null, source || null, notes || null, condition || null]
+      'INSERT INTO toys (user_id, copy, is_wishlist, for_sale, hidden, name, manufacturer, `release_wave`, `faction`, `manufacturer_id`, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, `condition`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [userId, parsedCopy, wishlist === 'true' || wishlist === true, for_sale === 'true' || for_sale === true, hidden === 'true' || hidden === true, name, manufacturer || null, release || null, faction || null, manufacturer_id || null, series || null, sub_series || null, theme || null, toyline || null, year ? parseInt(year) : null, cost ? parseFloat(cost) : null, value ? parseFloat(value) : null, source || null, notes || null, condition || null]
     );
     const toyId = result.insertId;
     await setToyTags(toyId, parseTagIds(tags));
@@ -389,8 +370,8 @@ router.post('/', authenticate, upload.array('photos', 8), async (req, res) => {
 // Download a CSV template with sample data for bulk import
 router.get('/import/template', authenticate, (req, res) => {
   const sampleRows = [
-    ['Millennium Falcon', 'LEGO', 'Wave 1', 'Good', 'WFC101', 'Star Wars', '', 'Space', 'Construction Set', 'Millennium Falcon', '2000', '89.99', '129.99', 'Local shop', 'Includes box and instructions', 'Excellent', 'Star Wars,Space', 'Han Solo minifigure|Seat', 'Han Solo minifigure'],
-    ['Transformers Optimus Prime', 'Hasbro', 'Wave 2', 'Autobot', 'WFC202', 'Transformers', 'Generations', 'Autobots', 'Action Figure', 'Prime', '2022', '24.99', '42.50', 'Online auction', 'New in box', 'Like New', 'Robot,Action Figure', 'Blaster accessory', 'Blaster accessory']
+    ['Millennium Falcon', '42', '2000', 'LEGO', 'Millennium Falcon', 'Star Wars', '', 'Space', 'Wave 1', 'Good', 'Includes box and instructions', 'Star Wars,Space', 'Han Solo minifigure|Seat', 'Han Solo minifigure', '89.99', '129.99', 'Local shop'],
+    ['Transformers Optimus Prime', '17', '2022', 'Hasbro', 'Prime', 'Transformers', 'Generations', 'Autobots', 'Wave 2', 'Autobot', 'New in box', 'Robot,Action Figure', 'Blaster accessory', 'Blaster accessory', '24.99', '42.50', 'Online auction']
   ];
 
   const csv = [
@@ -409,7 +390,7 @@ router.get('/export/csv', authenticate, async (req, res) => {
   const criteria = req.query.criteria ? JSON.parse(req.query.criteria) : (req.body && req.body.criteria ? req.body.criteria : []);
 
   try {
-    const allowedFields = new Set(['toyline', 'manufacturer', 'release', 'faction', 'series', 'sub_series', 'theme', 'type', 'year', 'condition']);
+    const allowedFields = new Set(['toyline', 'manufacturer', 'release', 'faction', 'series', 'sub_series', 'theme', 'year', 'condition']);
     const normalizedCriteria = normalizeBulkCriteria(criteria);
     const invalidField = normalizedCriteria.find(item => !allowedFields.has(item.field));
     if (invalidField) return res.status(400).json({ error: `Invalid field: ${invalidField.field}` });
@@ -437,7 +418,7 @@ router.get('/export/csv', authenticate, async (req, res) => {
     const filterWhere = whereClauses.length ? ' AND ' + whereClauses.join(' AND ') : '';
 
     const [rows] = await pool.query(
-      `SELECT t.id, t.copy, t.name, t.manufacturer, t.\`release_wave\` AS \`release\`, t.\`faction\`, t.\`manufacturer_id\`, t.series, t.sub_series, t.theme, t.type, t.toyline, t.year AS year_value, t.cost, t.value, t.source, t.notes, t.condition,
+      `SELECT t.id, t.copy, t.name, t.manufacturer, t.\`release_wave\` AS \`release\`, t.\`faction\`, t.\`manufacturer_id\`, t.series, t.sub_series, t.theme, t.toyline, t.year AS year_value, t.cost, t.value, t.source, t.notes, t.condition,
         GROUP_CONCAT(DISTINCT tags.name ORDER BY tags.name SEPARATOR '|') AS tags,
         GROUP_CONCAT(DISTINCT CASE WHEN toy_accessories.has_accessory = 1 THEN toy_accessories.name ELSE NULL END ORDER BY toy_accessories.name SEPARATOR '|') AS owned_accessories,
         GROUP_CONCAT(DISTINCT CASE WHEN toy_accessories.has_accessory = 0 THEN toy_accessories.name ELSE NULL END ORDER BY toy_accessories.name SEPARATOR '|') AS accessories
@@ -446,14 +427,14 @@ router.get('/export/csv', authenticate, async (req, res) => {
        LEFT JOIN tags ON tags.id = tt.tag_id
        LEFT JOIN toy_accessories ON toy_accessories.toy_id = t.id
        WHERE ${baseWhere}${filterWhere}
-       GROUP BY t.id, t.copy, t.name, t.manufacturer, t.\`release_wave\`, t.\`faction\`, t.\`manufacturer_id\`, t.series, t.sub_series, t.theme, t.type, t.toyline, t.year, t.cost, t.value, t.source, t.notes, t.condition
+       GROUP BY t.id, t.copy, t.name, t.manufacturer, t.\`release_wave\`, t.\`faction\`, t.\`manufacturer_id\`, t.series, t.sub_series, t.theme, t.toyline, t.year, t.cost, t.value, t.source, t.notes, t.condition
        ORDER BY t.name, t.copy`,
       params
     );
 
     const csvRows = [
-      ['id', 'copy', 'name', 'manufacturer', 'release', 'faction', 'manufacturer_id', 'series', 'sub_series', 'theme', 'type', 'toyline', 'year', 'cost', 'value', 'source', 'notes', 'condition', 'tags', 'accessories', 'owned_accessories'],
-      ...rows.map(row => [row.id, row.copy ?? 1, row.name || '', row.manufacturer || '', row.release || '', row.faction || '', row.manufacturer_id || '', row.series || '', row.sub_series || '', row.theme || '', row.type || '', row.toyline || '', row.year_value ?? '', row.cost ?? '', row.value ?? '', row.source || '', row.notes || '', row.condition || '', row.tags || '', row.accessories || '', row.owned_accessories || ''])
+      ['id', 'copy', 'name', 'manufacturer_id', 'year', 'manufacturer', 'toyline', 'series', 'sub_series', 'theme', 'release_wave', 'faction', 'condition', 'notes', 'tags', 'accessories', 'owned_accessories', 'cost', 'value', 'source'],
+      ...rows.map(row => [row.id, row.copy ?? 1, row.name || '', row.manufacturer_id ?? '', row.year_value ?? '', row.manufacturer || '', row.toyline || '', row.series || '', row.sub_series || '', row.theme || '', row.release || '', row.faction || '', row.condition || '', row.notes || '', row.tags || '', row.accessories || '', row.owned_accessories || '', row.cost ?? '', row.value ?? '', row.source || ''])
     ];
 
     const csv = csvRows.map(row => row.map(escapeCsvCell).join(',')).join('\n') + '\n';
@@ -492,7 +473,7 @@ router.post('/import', authenticate, csvUpload.single('file'), async (req, res) 
   const [allTags] = await pool.query('SELECT id, name FROM tags');
   const tagIdsByName = new Map(allTags.map(t => [t.name.toLowerCase(), t.id]));
   const [existingToys] = await pool.query(
-    'SELECT id, copy, name, manufacturer, `release_wave` AS `release`, `faction`, `manufacturer_id`, series, sub_series, theme, type, toyline, `year`, cost, `value`, source, notes, `condition`, is_wishlist, for_sale, hidden FROM toys WHERE user_id = ?',
+  'SELECT id, copy, name, manufacturer, `release_wave` AS `release`, `faction`, `manufacturer_id`, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, `condition`, is_wishlist, for_sale, hidden FROM toys WHERE user_id = ?',
     [userId]
   );
 
@@ -553,12 +534,12 @@ router.post('/import', authenticate, csvUpload.single('file'), async (req, res) 
 
       try {
         const [result] = await pool.query(
-              'INSERT INTO toys (user_id, copy, is_wishlist, for_sale, hidden, name, manufacturer, `release_wave`, `faction`, `manufacturer_id`, series, sub_series, theme, type, toyline, `year`, cost, `value`, source, notes, `condition`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          [userId, finalCopy, isWishlist, isForSale, isHidden, record.name, record.manufacturer || null, record.release || null, record.faction || null, record.manufacturer_id || null, record.series || null, record.sub_series || null, record.theme || null, record.type || null, record.toyline || null, year, cost, value, record.source || null, record.notes || null, record.condition || null]
+              'INSERT INTO toys (user_id, copy, is_wishlist, for_sale, hidden, name, manufacturer, `release_wave`, `faction`, `manufacturer_id`, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, `condition`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          [userId, finalCopy, isWishlist, isForSale, isHidden, record.name, record.manufacturer || null, record.release || null, record.faction || null, record.manufacturer_id || null, record.series || null, record.sub_series || null, record.theme || null, record.toyline || null, year, cost, value, record.source || null, record.notes || null, record.condition || null]
         );
         await setToyTags(result.insertId, tagIds);
         await setToyAccessories(result.insertId, accessoryEntries);
-        existingToys.push({ id: result.insertId, copy: finalCopy, name: record.name, manufacturer: record.manufacturer || null, release: record.release || null, faction: record.faction || null, manufacturer_id: record.manufacturer_id || null, series: record.series || null, sub_series: record.sub_series || null, theme: record.theme || null, type: record.type || null, toyline: record.toyline || null, year, cost, value, source: record.source || null, notes: record.notes || null, condition: record.condition || null, is_wishlist: isWishlist, for_sale: isForSale, hidden: isHidden });
+        existingToys.push({ id: result.insertId, copy: finalCopy, name: record.name, manufacturer: record.manufacturer || null, release: record.release || null, faction: record.faction || null, manufacturer_id: record.manufacturer_id || null, series: record.series || null, sub_series: record.sub_series || null, theme: record.theme || null, toyline: record.toyline || null, year, cost, value, source: record.source || null, notes: record.notes || null, condition: record.condition || null, is_wishlist: isWishlist, for_sale: isForSale, hidden: isHidden });
         importCopiesByNaturalKey.set(naturalKey, finalCopy);
         imported++;
       } catch (err) {
@@ -630,14 +611,14 @@ router.post('/import', authenticate, csvUpload.single('file'), async (req, res) 
         const matchingNaturalKeyRows = existingToys.filter(toy => buildToyNaturalKey(toy) === naturalKey);
         const nextCopy = matchingNaturalKeyRows.length ? Math.max(...matchingNaturalKeyRows.map(toy => Number(toy.copy || 1))) + 1 : 1;
         const [result] = await pool.query(
-          'INSERT INTO toys (user_id, copy, is_wishlist, for_sale, hidden, name, manufacturer, `release_wave`, `faction`, `manufacturer_id`, series, sub_series, theme, type, toyline, `year`, cost, `value`, source, notes, `condition`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          [userId, nextCopy, ['true', '1', 'yes'].includes((record.wishlist || '').toLowerCase()), ['true', '1', 'yes'].includes((record.for_sale || '').toLowerCase()), ['true', '1', 'yes'].includes((record.hidden || '').toLowerCase()), record.name, record.manufacturer || null, record.release || null, record.faction || null, record.manufacturer_id || null, record.series || null, record.sub_series || null, record.theme || null, record.type || null, record.toyline || null, year, cost, value, record.source || null, record.notes || null, record.condition || null]
+          'INSERT INTO toys (user_id, copy, is_wishlist, for_sale, hidden, name, manufacturer, `release_wave`, `faction`, `manufacturer_id`, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, `condition`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          [userId, nextCopy, ['true', '1', 'yes'].includes((record.wishlist || '').toLowerCase()), ['true', '1', 'yes'].includes((record.for_sale || '').toLowerCase()), ['true', '1', 'yes'].includes((record.hidden || '').toLowerCase()), record.name, record.manufacturer || null, record.release || null, record.faction || null, record.manufacturer_id || null, record.series || null, record.sub_series || null, record.theme || null, record.toyline || null, year, cost, value, record.source || null, record.notes || null, record.condition || null]
         );
         const createdToyId = result.insertId;
         await setToyTags(createdToyId, tagIds);
         await setToyAccessories(createdToyId, accessoryEntries);
         created++;
-        existingToys.push({ id: createdToyId, copy: nextCopy, name: record.name, manufacturer: record.manufacturer || null, release: record.release || null, faction: record.faction || null, manufacturer_id: record.manufacturer_id || null, series: record.series || null, sub_series: record.sub_series || null, theme: record.theme || null, type: record.type || null, toyline: record.toyline || null, year: year, cost, value, source: record.source || null, notes: record.notes || null, condition: record.condition || null, is_wishlist: ['true', '1', 'yes'].includes((record.wishlist || '').toLowerCase()), for_sale: ['true', '1', 'yes'].includes((record.for_sale || '').toLowerCase()), hidden: ['true', '1', 'yes'].includes((record.hidden || '').toLowerCase()) });
+        existingToys.push({ id: createdToyId, copy: nextCopy, name: record.name, manufacturer: record.manufacturer || null, release: record.release || null, faction: record.faction || null, manufacturer_id: record.manufacturer_id || null, series: record.series || null, sub_series: record.sub_series || null, theme: record.theme || null, toyline: record.toyline || null, year: year, cost, value, source: record.source || null, notes: record.notes || null, condition: record.condition || null, is_wishlist: ['true', '1', 'yes'].includes((record.wishlist || '').toLowerCase()), for_sale: ['true', '1', 'yes'].includes((record.for_sale || '').toLowerCase()), hidden: ['true', '1', 'yes'].includes((record.hidden || '').toLowerCase()) });
         existingById.set(createdToyId, existingToys[existingToys.length - 1]);
         continue;
       }
@@ -647,8 +628,8 @@ router.post('/import', authenticate, csvUpload.single('file'), async (req, res) 
       const isHidden = ['true', '1', 'yes'].includes((record.hidden || '').toLowerCase());
 
       await pool.query(
-        'UPDATE toys SET name=?, manufacturer=?, `release_wave`=?, `faction`=?, `manufacturer_id`=?, series=?, sub_series=?, theme=?, type=?, toyline=?, `year`=?, cost=?, `value`=?, source=?, notes=?, `condition`=?, copy=?, for_sale=?, hidden=?, is_wishlist=? WHERE id=? AND user_id=?',
-        [record.name, record.manufacturer || null, record.release || null, record.faction || null, record.manufacturer_id || null, record.series || null, record.sub_series || null, record.theme || null, record.type || null, record.toyline || null, year, cost, value, record.source || null, record.notes || null, record.condition || null, finalCopy, isForSale, isHidden, isWishlist, matchingToy.id, userId]
+        'UPDATE toys SET name=?, manufacturer=?, `release_wave`=?, `faction`=?, `manufacturer_id`=?, series=?, sub_series=?, theme=?, toyline=?, `year`=?, cost=?, `value`=?, source=?, notes=?, `condition`=?, copy=?, for_sale=?, hidden=?, is_wishlist=? WHERE id=? AND user_id=?',
+        [record.name, record.manufacturer || null, record.release || null, record.faction || null, record.manufacturer_id || null, record.series || null, record.sub_series || null, record.theme || null, record.toyline || null, year, cost, value, record.source || null, record.notes || null, record.condition || null, finalCopy, isForSale, isHidden, isWishlist, matchingToy.id, userId]
       );
       await setToyTags(matchingToy.id, tagIds);
       await setToyAccessories(matchingToy.id, accessoryEntries);
@@ -664,7 +645,7 @@ router.post('/import', authenticate, csvUpload.single('file'), async (req, res) 
 
 // Get distinct values for a field from the user's collection.
 router.get('/bulk-values', authenticate, async (req, res) => {
-  const allowedFields = new Set(['toyline', 'manufacturer', 'release', 'faction', 'series', 'sub_series', 'theme', 'type', 'year', 'condition']);
+  const allowedFields = new Set(['toyline', 'manufacturer', 'release', 'faction', 'series', 'sub_series', 'theme', 'year', 'condition']);
   const field = req.query.field;
   if (!allowedFields.has(field)) return res.status(400).json({ error: 'Invalid field' });
 
@@ -705,7 +686,7 @@ function getSqlFieldName(fieldName) {
 }
 
 function buildCriteriaClauses(rawCriteria, options = {}) {
-  const allowedFields = new Set(options.allowedFields || ['toyline', 'manufacturer', 'release', 'faction', 'series', 'sub_series', 'theme', 'type', 'year', 'condition']);
+  const allowedFields = new Set(options.allowedFields || ['toyline', 'manufacturer', 'release', 'faction', 'series', 'sub_series', 'theme', 'year', 'condition']);
   const normalizedCriteria = normalizeBulkCriteria(rawCriteria);
   const invalidField = normalizedCriteria.find(item => !allowedFields.has(item.field));
   if (invalidField) throw new Error(`Invalid field: ${invalidField.field}`);
@@ -742,7 +723,7 @@ function buildCriteriaClauses(rawCriteria, options = {}) {
 router.post('/bulk-delete', authenticate, async (req, res) => {
   const userId = req.user.id;
   const { criteria, field, value, preview } = req.body || {};
-  const allowedFields = new Set(['toyline', 'manufacturer', 'release', 'faction', 'series', 'sub_series', 'theme', 'type', 'year', 'condition', 'tag']);
+  const allowedFields = new Set(['toyline', 'manufacturer', 'release', 'faction', 'series', 'sub_series', 'theme', 'year', 'condition', 'tag']);
 
   try {
     const normalizedCriteria = normalizeBulkCriteria(criteria || (field ? [{ field, value }] : []));
@@ -777,7 +758,7 @@ router.post('/bulk-delete', authenticate, async (req, res) => {
     }
 
     const matchQuery = `
-      SELECT t.id, t.name, t.manufacturer, t.series, t.sub_series, t.theme, t.type, t.toyline, t.year AS year_value, t.condition
+      SELECT t.id, t.name, t.manufacturer, t.series, t.sub_series, t.theme, t.toyline, t.year AS year_value, t.condition
       FROM toys t
       WHERE t.user_id = ? AND t.is_wishlist = 0 AND ${whereClauses.join(' AND ')}
       ORDER BY t.name ASC
@@ -794,7 +775,6 @@ router.post('/bulk-delete', authenticate, async (req, res) => {
       theme: row.theme,
       toyline: row.toyline,
       year: row.year_value,
-      type: row.type,
       condition: row.condition
     }));
 
@@ -826,7 +806,7 @@ router.post('/bulk-update', authenticate, async (req, res) => {
   const { criteria, field, value, preview, action } = req.body || {};
   const normalizedAction = String(action || 'delete').trim();
   const allowedActions = new Set(['delete', 'hide', 'mark_for_sale']);
-  const allowedFields = new Set(['toyline', 'manufacturer', 'release', 'faction', 'series', 'sub_series', 'theme', 'type', 'year', 'condition', 'tag']);
+  const allowedFields = new Set(['toyline', 'manufacturer', 'release', 'faction', 'series', 'sub_series', 'theme', 'year', 'condition', 'tag']);
 
   if (!allowedActions.has(normalizedAction)) {
     return res.status(400).json({ error: 'Invalid bulk action' });
@@ -865,7 +845,7 @@ router.post('/bulk-update', authenticate, async (req, res) => {
     }
 
     const matchQuery = `
-      SELECT t.id, t.name, t.manufacturer, t.series, t.sub_series, t.theme, t.type, t.toyline, t.year AS year_value, t.condition
+      SELECT t.id, t.name, t.manufacturer, t.series, t.sub_series, t.theme, t.toyline, t.year AS year_value, t.condition
       FROM toys t
       WHERE t.user_id = ? AND t.is_wishlist = 0 AND ${whereClauses.join(' AND ')}
       ORDER BY t.name ASC
@@ -881,10 +861,8 @@ router.post('/bulk-update', authenticate, async (req, res) => {
       theme: row.theme,
       toyline: row.toyline,
       year: row.year_value,
-      type: row.type,
       condition: row.condition
     }));
-
     if (preview) {
       return res.json({ ok: true, action: normalizedAction, preview: true, total: matches.length, matches });
     }
@@ -939,16 +917,16 @@ router.get('/', authenticate, async (req, res) => {
     let params = [userId];
 
     if (hidden) {
-      query = 'SELECT id, copy, is_wishlist, for_sale, hidden, name, manufacturer, `release_wave` AS `release`, `faction`, `manufacturer_id`, series, sub_series, theme, type, toyline, `year`, cost, `value`, source, notes, `condition`, created_at FROM toys WHERE user_id = ? AND hidden = ? ORDER BY (year IS NULL), year, (manufacturer IS NULL), manufacturer, (toyline IS NULL), toyline, (series IS NULL), series, (sub_series IS NULL), sub_series, (theme IS NULL), theme, (`release_wave` IS NULL), `release_wave`, (type IS NULL), type, (`faction` IS NULL), `faction`, name, copy';
+      query = 'SELECT id, copy, is_wishlist, for_sale, hidden, name, manufacturer, `release_wave` AS `release`, `faction`, `manufacturer_id`, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, `condition`, created_at FROM toys WHERE user_id = ? AND hidden = ? ORDER BY (year IS NULL), year, (manufacturer IS NULL), manufacturer, (toyline IS NULL), toyline, (series IS NULL), series, (sub_series IS NULL), sub_series, (theme IS NULL), theme, (`release_wave` IS NULL), `release_wave`, (`faction` IS NULL), `faction`, name, copy';
       params.push(1);
     } else if (forSale) {
-      query = 'SELECT id, copy, is_wishlist, for_sale, hidden, name, manufacturer, `release_wave` AS `release`, `faction`, `manufacturer_id`, series, sub_series, theme, type, toyline, `year`, cost, `value`, source, notes, `condition`, created_at FROM toys WHERE user_id = ? AND for_sale = ? AND hidden = 0 ORDER BY (year IS NULL), year, (manufacturer IS NULL), manufacturer, (toyline IS NULL), toyline, (series IS NULL), series, (sub_series IS NULL), sub_series, (theme IS NULL), theme, (`release_wave` IS NULL), `release_wave`, (type IS NULL), type, (`faction` IS NULL), `faction`, name, copy';
+      query = 'SELECT id, copy, is_wishlist, for_sale, hidden, name, manufacturer, `release_wave` AS `release`, `faction`, `manufacturer_id`, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, `condition`, created_at FROM toys WHERE user_id = ? AND for_sale = ? AND hidden = 0 ORDER BY (year IS NULL), year, (manufacturer IS NULL), manufacturer, (toyline IS NULL), toyline, (series IS NULL), series, (sub_series IS NULL), sub_series, (theme IS NULL), theme, (`release_wave` IS NULL), `release_wave`, (`faction` IS NULL), `faction`, name, copy';
       params.push(1);
     } else if (wishlist) {
-      query = 'SELECT id, copy, is_wishlist, for_sale, hidden, name, manufacturer, `release_wave` AS `release`, `faction`, `manufacturer_id`, series, sub_series, theme, type, toyline, `year`, cost, `value`, source, notes, `condition`, created_at FROM toys WHERE user_id = ? AND is_wishlist = ? AND hidden = 0 ORDER BY (year IS NULL), year, (manufacturer IS NULL), manufacturer, (toyline IS NULL), toyline, (series IS NULL), series, (sub_series IS NULL), sub_series, (theme IS NULL), theme, (`release_wave` IS NULL), `release_wave`, (type IS NULL), type, (`faction` IS NULL), `faction`, name, copy';
+      query = 'SELECT id, copy, is_wishlist, for_sale, hidden, name, manufacturer, `release_wave` AS `release`, `faction`, `manufacturer_id`, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, `condition`, created_at FROM toys WHERE user_id = ? AND is_wishlist = ? AND hidden = 0 ORDER BY (year IS NULL), year, (manufacturer IS NULL), manufacturer, (toyline IS NULL), toyline, (series IS NULL), series, (sub_series IS NULL), sub_series, (theme IS NULL), theme, (`release_wave` IS NULL), `release_wave`, (`faction` IS NULL), `faction`, name, copy';
       params.push(1);
     } else {
-      query = 'SELECT id, copy, is_wishlist, for_sale, hidden, name, manufacturer, `release_wave` AS `release`, `faction`, `manufacturer_id`, series, sub_series, theme, type, toyline, `year`, cost, `value`, source, notes, `condition`, created_at FROM toys WHERE user_id = ? AND is_wishlist = 0 AND hidden = 0 ORDER BY (year IS NULL), year, (manufacturer IS NULL), manufacturer, (toyline IS NULL), toyline, (series IS NULL), series, (sub_series IS NULL), sub_series, (theme IS NULL), theme, (`release_wave` IS NULL), `release_wave`, (type IS NULL), type, (`faction` IS NULL), `faction`, name, copy';
+      query = 'SELECT id, copy, is_wishlist, for_sale, hidden, name, manufacturer, `release_wave` AS `release`, `faction`, `manufacturer_id`, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, `condition`, created_at FROM toys WHERE user_id = ? AND is_wishlist = 0 AND hidden = 0 ORDER BY (year IS NULL), year, (manufacturer IS NULL), manufacturer, (toyline IS NULL), toyline, (series IS NULL), series, (sub_series IS NULL), sub_series, (theme IS NULL), theme, (`release_wave` IS NULL), `release_wave`, (`faction` IS NULL), `faction`, name, copy';
     }
 
     const [toys] = await pool.query(query, params);
@@ -984,7 +962,7 @@ router.get('/:id', authenticate, async (req, res) => {
   const userId = ownerId;
   const id = req.params.id;
   try {
-    const [rows] = await pool.query('SELECT id, copy, is_wishlist, for_sale, hidden, name, manufacturer, `release_wave` AS `release`, `faction`, `manufacturer_id`, series, sub_series, theme, type, toyline, `year`, cost, `value`, source, notes, `condition`, created_at FROM toys WHERE id = ? AND user_id = ?', [id, userId]);
+    const [rows] = await pool.query('SELECT id, copy, is_wishlist, for_sale, hidden, name, manufacturer, `release_wave` AS `release`, `faction`, `manufacturer_id`, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, `condition`, created_at FROM toys WHERE id = ? AND user_id = ?', [id, userId]);
     if (!rows.length) return res.status(404).json({ error: 'Toy not found' });
     const toy = rows[0];
     const [photos] = await pool.query('SELECT id, filename, original_name, sort_order FROM toy_photos WHERE toy_id = ? ORDER BY sort_order ASC, created_at ASC', [toy.id]);
@@ -1007,12 +985,12 @@ router.get('/:id', authenticate, async (req, res) => {
 router.put('/:id', authenticate, async (req, res) => {
   const userId = req.user.id;
   const id = req.params.id;
-  const { name, manufacturer, release, faction, manufacturer_id, series, sub_series, theme, type, toyline, year, condition, cost, value, source, notes, tags, accessories, for_sale, hidden, copy } = req.body || {};
+  const { name, manufacturer, release, faction, manufacturer_id, series, sub_series, theme, toyline, year, condition, cost, value, source, notes, tags, accessories, for_sale, hidden, copy } = req.body || {};
   if (!name) return res.status(400).json({ error: 'Name is required' });
   const parsedCopy = copy === undefined || copy === null || copy === '' ? 1 : Number(copy);
   if (!Number.isInteger(parsedCopy) || parsedCopy < 1) return res.status(400).json({ error: 'Copy must be a positive whole number' });
   try {
-    const [result] = await pool.query('UPDATE toys SET name=?, manufacturer=?, `release_wave`=?, `faction`=?, `manufacturer_id`=?, series=?, sub_series=?, theme=?, type=?, toyline=?, `year`=?, cost=?, `value`=?, source=?, notes=?, `condition`=?, copy=?, for_sale=?, hidden=? WHERE id=? AND user_id=?', [name, manufacturer || null, release || null, faction || null, manufacturer_id || null, series || null, sub_series || null, theme || null, type || null, toyline || null, year ? parseInt(year) : null, cost ? parseFloat(cost) : null, value ? parseFloat(value) : null, source || null, notes || null, condition || null, parsedCopy, for_sale === 'true' || for_sale === true || for_sale === 1 || for_sale === '1', hidden === 'true' || hidden === true || hidden === 1 || hidden === '1', id, userId]);
+    const [result] = await pool.query('UPDATE toys SET name=?, manufacturer=?, `release_wave`=?, `faction`=?, `manufacturer_id`=?, series=?, sub_series=?, theme=?, toyline=?, `year`=?, cost=?, `value`=?, source=?, notes=?, `condition`=?, copy=?, for_sale=?, hidden=? WHERE id=? AND user_id=?', [name, manufacturer || null, release || null, faction || null, manufacturer_id || null, series || null, sub_series || null, theme || null, toyline || null, year ? parseInt(year) : null, cost ? parseFloat(cost) : null, value ? parseFloat(value) : null, source || null, notes || null, condition || null, parsedCopy, for_sale === 'true' || for_sale === true || for_sale === 1 || for_sale === '1', hidden === 'true' || hidden === true || hidden === 1 || hidden === '1', id, userId]);
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Toy not found' });
     await setToyTags(id, parseTagIds(tags));
     await setToyAccessories(id, parseAccessoryEntries(accessories));
@@ -1034,14 +1012,14 @@ router.post('/:id/copy', authenticate, async (req, res) => {
 
     // `<=>` is MySQL's null-safe equality operator, needed since several identity fields can be NULL.
     const [maxRows] = await pool.query(
-      'SELECT COALESCE(MAX(copy), 0) AS max_copy FROM toys WHERE user_id = ? AND name <=> ? AND manufacturer <=> ? AND `release_wave` <=> ? AND `faction` <=> ? AND `manufacturer_id` <=> ? AND series <=> ? AND sub_series <=> ? AND theme <=> ? AND type <=> ? AND toyline <=> ? AND `year` <=> ?',
-      [userId, toy.name, toy.manufacturer, toy.release, toy.faction, toy.manufacturer_id, toy.series, toy.sub_series, toy.theme, toy.type, toy.toyline, toy.year]
+      'SELECT COALESCE(MAX(copy), 0) AS max_copy FROM toys WHERE user_id = ? AND name <=> ? AND manufacturer <=> ? AND `release_wave` <=> ? AND `faction` <=> ? AND `manufacturer_id` <=> ? AND series <=> ? AND sub_series <=> ? AND theme <=> ? AND toyline <=> ? AND `year` <=> ?',
+      [userId, toy.name, toy.manufacturer, toy.release, toy.faction, toy.manufacturer_id, toy.series, toy.sub_series, toy.theme, toy.toyline, toy.year]
     );
     const nextCopy = Number(maxRows[0]?.max_copy || 0) + 1;
 
     const [result] = await pool.query(
-      'INSERT INTO toys (user_id, copy, is_wishlist, for_sale, hidden, name, manufacturer, `release_wave`, `faction`, `manufacturer_id`, series, sub_series, theme, type, toyline, `year`, cost, `value`, source, notes, `condition`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [userId, nextCopy, toy.is_wishlist, toy.for_sale, toy.hidden, toy.name, toy.manufacturer, toy.release, toy.faction, toy.manufacturer_id, toy.series, toy.sub_series, toy.theme, toy.type, toy.toyline, toy.year, toy.cost, toy.value, toy.source, toy.notes, toy.condition]
+      'INSERT INTO toys (user_id, copy, is_wishlist, for_sale, hidden, name, manufacturer, `release_wave`, `faction`, `manufacturer_id`, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, `condition`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [userId, nextCopy, toy.is_wishlist, toy.for_sale, toy.hidden, toy.name, toy.manufacturer, toy.release, toy.faction, toy.manufacturer_id, toy.series, toy.sub_series, toy.theme, toy.toyline, toy.year, toy.cost, toy.value, toy.source, toy.notes, toy.condition]
     );
     const newToyId = result.insertId;
 
