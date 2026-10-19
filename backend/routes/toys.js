@@ -243,6 +243,24 @@ function parseAccessoryEntries(rawAccessories) {
   return [];
 }
 
+function splitCsvAccessoryValues(rawValue) {
+  return String(rawValue || '')
+    .split(/[|,;\n]/)
+    .map(item => item.trim())
+    .filter(Boolean);
+}
+
+function buildAccessoryEntriesFromCsv(record = {}) {
+  const accessoryNames = splitCsvAccessoryValues(record.accessories);
+  const ownedAccessoryNames = new Set(splitCsvAccessoryValues(record.owned_accessories));
+  const uniqueNames = [...new Map([...accessoryNames, ...ownedAccessoryNames].map(name => [name.toLowerCase(), name])).values()];
+
+  return uniqueNames.map(name => ({
+    name,
+    has_accessory: ownedAccessoryNames.has(name)
+  }));
+}
+
 async function attachTags(toys) {
   for (const toy of toys) {
     const [tagRows] = await pool.query(
@@ -292,6 +310,15 @@ function parseCsv(text) {
   }
   if (field.length || row.length) { row.push(field); rows.push(row); }
   return rows.filter(r => !(r.length === 1 && r[0].trim() === ''));
+}
+
+function getRecordValue(record = {}, aliases = []) {
+  const normalizedAliases = aliases.map(alias => String(alias).trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, ''));
+
+  const exactKey = Object.keys(record).find(key => normalizedAliases.includes(String(key).trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')));
+  if (exactKey !== undefined) return record[exactKey];
+
+  return '';
 }
 
 const suggestionFields = ['manufacturer', 'release', 'faction', 'toyline', 'series', 'sub_series', 'theme', 'source'];
@@ -488,12 +515,11 @@ router.post('/import', authenticate, csvUpload.single('file'), async (req, res) 
 
       const record = {};
       header.forEach((key, index) => { record[key] = (values[index] || '').trim(); });
+      const releaseValue = getRecordValue(record, ['release_wave', 'release', 'release wave']);
 
       if (!record.name) { errors.push({ row: rowNumber, error: 'Name is required' }); continue; }
 
-      const accessoryNames = String(record.accessories || '').split(/[|,;\n]/).map(item => item.trim()).filter(Boolean);
-      const ownedAccessoryNames = new Set(String(record.owned_accessories || '').split(/[|,;\n]/).map(item => item.trim()).filter(Boolean));
-      const accessoryEntries = accessoryNames.map(name => ({ name, has_accessory: ownedAccessoryNames.has(name) }));
+      const accessoryEntries = buildAccessoryEntriesFromCsv(record);
 
       const year = record.year ? parseInt(record.year, 10) : null;
       if (record.year && Number.isNaN(year)) { errors.push({ row: rowNumber, error: 'Year must be a number' }); continue; }
@@ -535,11 +561,11 @@ router.post('/import', authenticate, csvUpload.single('file'), async (req, res) 
       try {
         const [result] = await pool.query(
               'INSERT INTO toys (user_id, copy, is_wishlist, for_sale, hidden, name, manufacturer, `release_wave`, `faction`, `manufacturer_id`, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, `condition`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          [userId, finalCopy, isWishlist, isForSale, isHidden, record.name, record.manufacturer || null, record.release || null, record.faction || null, record.manufacturer_id || null, record.series || null, record.sub_series || null, record.theme || null, record.toyline || null, year, cost, value, record.source || null, record.notes || null, record.condition || null]
+            [userId, finalCopy, isWishlist, isForSale, isHidden, record.name, record.manufacturer || null, releaseValue || null, record.faction || null, record.manufacturer_id || null, record.series || null, record.sub_series || null, record.theme || null, record.toyline || null, year, cost, value, record.source || null, record.notes || null, record.condition || null]
         );
         await setToyTags(result.insertId, tagIds);
         await setToyAccessories(result.insertId, accessoryEntries);
-        existingToys.push({ id: result.insertId, copy: finalCopy, name: record.name, manufacturer: record.manufacturer || null, release: record.release || null, faction: record.faction || null, manufacturer_id: record.manufacturer_id || null, series: record.series || null, sub_series: record.sub_series || null, theme: record.theme || null, toyline: record.toyline || null, year, cost, value, source: record.source || null, notes: record.notes || null, condition: record.condition || null, is_wishlist: isWishlist, for_sale: isForSale, hidden: isHidden });
+          existingToys.push({ id: result.insertId, copy: finalCopy, name: record.name, manufacturer: record.manufacturer || null, release: releaseValue || null, faction: record.faction || null, manufacturer_id: record.manufacturer_id || null, series: record.series || null, sub_series: record.sub_series || null, theme: record.theme || null, toyline: record.toyline || null, year, cost, value, source: record.source || null, notes: record.notes || null, condition: record.condition || null, is_wishlist: isWishlist, for_sale: isForSale, hidden: isHidden });
         importCopiesByNaturalKey.set(naturalKey, finalCopy);
         imported++;
       } catch (err) {
@@ -563,12 +589,11 @@ router.post('/import', authenticate, csvUpload.single('file'), async (req, res) 
 
     const record = {};
     header.forEach((key, index) => { record[key] = (values[index] || '').trim(); });
+    const releaseValue = getRecordValue(record, ['release_wave', 'release', 'release wave']);
 
     if (!record.name) { errors.push({ row: rowNumber, error: 'Name is required' }); continue; }
 
-    const accessoryNames = String(record.accessories || '').split(/[|,;\n]/).map(item => item.trim()).filter(Boolean);
-    const ownedAccessoryNames = new Set(String(record.owned_accessories || '').split(/[|,;\n]/).map(item => item.trim()).filter(Boolean));
-    const accessoryEntries = accessoryNames.map(name => ({ name, has_accessory: ownedAccessoryNames.has(name) }));
+    const accessoryEntries = buildAccessoryEntriesFromCsv(record);
 
     const year = record.year ? parseInt(record.year, 10) : null;
     if (record.year && Number.isNaN(year)) { errors.push({ row: rowNumber, error: 'Year must be a number' }); continue; }
@@ -612,13 +637,13 @@ router.post('/import', authenticate, csvUpload.single('file'), async (req, res) 
         const nextCopy = matchingNaturalKeyRows.length ? Math.max(...matchingNaturalKeyRows.map(toy => Number(toy.copy || 1))) + 1 : 1;
         const [result] = await pool.query(
           'INSERT INTO toys (user_id, copy, is_wishlist, for_sale, hidden, name, manufacturer, `release_wave`, `faction`, `manufacturer_id`, series, sub_series, theme, toyline, `year`, cost, `value`, source, notes, `condition`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          [userId, nextCopy, ['true', '1', 'yes'].includes((record.wishlist || '').toLowerCase()), ['true', '1', 'yes'].includes((record.for_sale || '').toLowerCase()), ['true', '1', 'yes'].includes((record.hidden || '').toLowerCase()), record.name, record.manufacturer || null, record.release || null, record.faction || null, record.manufacturer_id || null, record.series || null, record.sub_series || null, record.theme || null, record.toyline || null, year, cost, value, record.source || null, record.notes || null, record.condition || null]
+          [userId, nextCopy, ['true', '1', 'yes'].includes((record.wishlist || '').toLowerCase()), ['true', '1', 'yes'].includes((record.for_sale || '').toLowerCase()), ['true', '1', 'yes'].includes((record.hidden || '').toLowerCase()), record.name, record.manufacturer || null, releaseValue || null, record.faction || null, record.manufacturer_id || null, record.series || null, record.sub_series || null, record.theme || null, record.toyline || null, year, cost, value, record.source || null, record.notes || null, record.condition || null]
         );
         const createdToyId = result.insertId;
         await setToyTags(createdToyId, tagIds);
         await setToyAccessories(createdToyId, accessoryEntries);
         created++;
-        existingToys.push({ id: createdToyId, copy: nextCopy, name: record.name, manufacturer: record.manufacturer || null, release: record.release || null, faction: record.faction || null, manufacturer_id: record.manufacturer_id || null, series: record.series || null, sub_series: record.sub_series || null, theme: record.theme || null, toyline: record.toyline || null, year: year, cost, value, source: record.source || null, notes: record.notes || null, condition: record.condition || null, is_wishlist: ['true', '1', 'yes'].includes((record.wishlist || '').toLowerCase()), for_sale: ['true', '1', 'yes'].includes((record.for_sale || '').toLowerCase()), hidden: ['true', '1', 'yes'].includes((record.hidden || '').toLowerCase()) });
+        existingToys.push({ id: createdToyId, copy: nextCopy, name: record.name, manufacturer: record.manufacturer || null, release: releaseValue || null, faction: record.faction || null, manufacturer_id: record.manufacturer_id || null, series: record.series || null, sub_series: record.sub_series || null, theme: record.theme || null, toyline: record.toyline || null, year: year, cost, value, source: record.source || null, notes: record.notes || null, condition: record.condition || null, is_wishlist: ['true', '1', 'yes'].includes((record.wishlist || '').toLowerCase()), for_sale: ['true', '1', 'yes'].includes((record.for_sale || '').toLowerCase()), hidden: ['true', '1', 'yes'].includes((record.hidden || '').toLowerCase()) });
         existingById.set(createdToyId, existingToys[existingToys.length - 1]);
         continue;
       }
@@ -629,7 +654,7 @@ router.post('/import', authenticate, csvUpload.single('file'), async (req, res) 
 
       await pool.query(
         'UPDATE toys SET name=?, manufacturer=?, `release_wave`=?, `faction`=?, `manufacturer_id`=?, series=?, sub_series=?, theme=?, toyline=?, `year`=?, cost=?, `value`=?, source=?, notes=?, `condition`=?, copy=?, for_sale=?, hidden=?, is_wishlist=? WHERE id=? AND user_id=?',
-        [record.name, record.manufacturer || null, record.release || null, record.faction || null, record.manufacturer_id || null, record.series || null, record.sub_series || null, record.theme || null, record.toyline || null, year, cost, value, record.source || null, record.notes || null, record.condition || null, finalCopy, isForSale, isHidden, isWishlist, matchingToy.id, userId]
+        [record.name, record.manufacturer || null, releaseValue || null, record.faction || null, record.manufacturer_id || null, record.series || null, record.sub_series || null, record.theme || null, record.toyline || null, year, cost, value, record.source || null, record.notes || null, record.condition || null, finalCopy, isForSale, isHidden, isWishlist, matchingToy.id, userId]
       );
       await setToyTags(matchingToy.id, tagIds);
       await setToyAccessories(matchingToy.id, accessoryEntries);
@@ -1183,3 +1208,5 @@ module.exports = router;
 module.exports.normalizeBulkCriteria = normalizeBulkCriteria;
 module.exports.buildCriteriaClauses = buildCriteriaClauses;
 module.exports.resolveImportCopy = resolveImportCopy;
+module.exports.getRecordValue = getRecordValue;
+module.exports.buildAccessoryEntriesFromCsv = buildAccessoryEntriesFromCsv;
