@@ -19,6 +19,7 @@ function buildFormState(initialValues = {}, hiddenValue = false) {
     theme: initialValues.theme || '',
     toyline: initialValues.toyline || '',
     year: initialValues.year !== undefined && initialValues.year !== null && initialValues.year !== '' ? String(initialValues.year) : '',
+    stock_location: initialValues.stock_location || '',
     notes: '',
     condition: '',
     tagIds: [],
@@ -45,7 +46,8 @@ export default function ToyForm({ wishlist = false, hidden = false, initialValue
     series: form.series,
     sub_series: form.sub_series,
     theme: form.theme,
-    year: form.year
+    year: form.year,
+    stock_location: form.stock_location
   })
   const allTags = useTags()
 
@@ -155,6 +157,7 @@ export default function ToyForm({ wishlist = false, hidden = false, initialValue
       <Field label="Notes"><textarea value={form.notes} onChange={event => updateField('notes', event.target.value)} className="w-full p-2 border rounded" /></Field>
       <div className="flex gap-2"><Field label="Cost" className="w-1/2"><input value={form.cost} onChange={event => updateField('cost', event.target.value)} type="number" min="0" step="0.01" className="w-full p-2 border rounded" /></Field><Field label="Value" className="w-1/2"><input value={form.value} onChange={event => updateField('value', event.target.value)} type="number" min="0" step="0.01" className="w-full p-2 border rounded" /></Field></div>
       <Field label="Source"><AutocompleteInput value={form.source} suggestions={suggestions.source} onChange={value => updateField('source', value)} /></Field>
+      <Field label="Stock Location"><AutocompleteInput value={form.stock_location} suggestions={suggestions.stock_location} onChange={value => updateField('stock_location', value)} /></Field>
       <div className="flex items-center gap-2 rounded border border-toydb-border bg-toydb-cream px-3 py-2">
         <input id="hidden-checkbox" type="checkbox" checked={Boolean(form.hidden)} onChange={event => updateField('hidden', event.target.checked)} className="h-4 w-4 rounded border-toydb-border text-toydb-orange focus:ring-toydb-orange" />
         <label htmlFor="hidden-checkbox" className="text-sm font-medium text-toydb-navy">Hidden</label>

@@ -22,6 +22,19 @@ test('allowed toy criteria exclude the removed type field for bulk filters and e
   ]), /Invalid field: type/);
 });
 
+test('photo presence filters generate the correct SQL clauses', () => {
+  const withPhotos = toysRouter.buildCriteriaClauses([
+    { field: 'has_photo', value: 'has_photo' }
+  ]);
+  const withoutPhotos = toysRouter.buildCriteriaClauses([
+    { field: 'has_photo', value: 'no_photo' }
+  ]);
+
+  assert.deepEqual(withPhotos.normalizedCriteria, [{ field: 'has_photo', value: 'has_photo' }]);
+  assert.deepEqual(withPhotos.whereClauses, ['EXISTS (SELECT 1 FROM toy_photos tp WHERE tp.toy_id = t.id)']);
+  assert.deepEqual(withoutPhotos.whereClauses, ['NOT EXISTS (SELECT 1 FROM toy_photos tp WHERE tp.toy_id = t.id)']);
+});
+
 test('import copy resolution rejects duplicates from existing records and the same import batch', () => {
   const existingToys = [{
     name: 'Millennium Falcon',

@@ -113,12 +113,24 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
   const selectedToys = selectedGroupPath.length ? currentSelectionToys : toys
   const filterableToys = (wishlist || forSale || hidden) ? toys : selectedToys
   const baseScopeToys = (wishlist || forSale || hidden) ? toys : (selectedGroup ? selectedToys : toys)
-  const filterSuggestionScope = appliedFilters.reduce((result, activeFilter) => {
+  const filterSuggestionScope = appliedFilters.reduce((result, activeFilter) => result.filter(toy => matchesDashboardFilter(toy, activeFilter)), filterableToys)
+  function matchesDashboardFilter(toy, activeFilter){
+    if (!activeFilter || !activeFilter.field) return true
     if (activeFilter.field === 'tag') {
-      return result.filter(toy => (toy.tags || []).some(tag => tag.name === activeFilter.value))
+      return (toy.tags || []).some(tag => tag.name === activeFilter.value)
     }
-    return result.filter(toy => String(toy[activeFilter.field] || '') === activeFilter.value)
-  }, filterableToys)
+    if (activeFilter.field === 'has_photo') {
+      const hasPhoto = Array.isArray(toy.photos) ? toy.photos.length > 0 : false
+      return activeFilter.value === 'has_photo' ? hasPhoto : !hasPhoto
+    }
+    return String(toy[activeFilter.field] || '') === activeFilter.value
+  }
+
+  function getFilterValueLabel(field, value){
+    if (field === 'has_photo') return value === 'has_photo' ? 'Has Photo' : 'No Photo'
+    return value
+  }
+
   const filterFields = {
     tag: 'Tag',
     condition: 'Condition',
@@ -129,11 +141,15 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
     year: 'Year',
     series: 'Series',
     sub_series: 'Sub-Series',
-    theme: 'Theme'
+    theme: 'Theme',
+    stock_location: 'Stock Location',
+    has_photo: 'Photos'
   }
   const filterValues = filterField === 'tag'
     ? [...new Set(filterSuggestionScope.flatMap(toy => (toy.tags || []).map(tag => tag.name)))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
-    : [...new Set(filterSuggestionScope.map(toy => toy[filterField]).filter(value => value !== null && value !== undefined && String(value).trim()).map(String))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+    : filterField === 'has_photo'
+      ? ['has_photo', 'no_photo']
+      : [...new Set(filterSuggestionScope.map(toy => toy[filterField]).filter(value => value !== null && value !== undefined && String(value).trim()).map(String))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
 
   function sortToyRecords(left, right){
     const yearLeft = left?.year === null || left?.year === undefined || left?.year === '' ? Number.MAX_SAFE_INTEGER : Number(left.year)
@@ -190,6 +206,7 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
       String(toy.sub_series || ''),
       String(toy.theme || ''),
       String(toy.condition || ''),
+      String(toy.stock_location || ''),
       String(toy.notes || ''),
       ...(toy.tags || []).map(tag => String(tag?.name || ''))
     ]
@@ -197,12 +214,7 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
     return candidateValues.some(value => value.toLowerCase().includes(query))
   }
 
-  const filteredToys = appliedFilters.reduce((result, activeFilter) => {
-    if (activeFilter.field === 'tag') {
-      return result.filter(toy => (toy.tags || []).some(tag => tag.name === activeFilter.value))
-    }
-    return result.filter(toy => String(toy[activeFilter.field] || '') === activeFilter.value)
-  }, baseScopeToys).filter(matchesSearch)
+  const filteredToys = appliedFilters.reduce((result, activeFilter) => result.filter(toy => matchesDashboardFilter(toy, activeFilter)), baseScopeToys).filter(matchesSearch)
 
   const parseCurrencyValue = value => {
     const rawValue = value === null || value === undefined ? '' : String(value).trim()
@@ -277,12 +289,7 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
     forSale,
     hidden
   })
-  const filteredSelectionToys = appliedFilters.reduce((result, activeFilter) => {
-    if (activeFilter.field === 'tag') {
-      return result.filter(toy => (toy.tags || []).some(tag => tag.name === activeFilter.value))
-    }
-    return result.filter(toy => String(toy[activeFilter.field] || '') === activeFilter.value)
-  }, selectedToys)
+  const filteredSelectionToys = appliedFilters.reduce((result, activeFilter) => result.filter(toy => matchesDashboardFilter(toy, activeFilter)), selectedToys)
   const addToyPrefill = buildAddToyPrefill(selectedGroupPath, filteredSelectionToys.length ? filteredSelectionToys : selectedToys, appliedFilters)
   const addToyLinkState = { ...dashboardViewState, prefill: addToyPrefill }
 
@@ -490,7 +497,7 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
             </button>}
             {appliedFilters.map(filter => (
               <button key={`${filter.field}:${filter.value}`} type="button" onClick={() => removeFilter(filter.field)} className="rounded-full border border-toydb-orange bg-toydb-orange-pale px-2 py-1 text-xs font-medium text-toydb-orange-dark hover:bg-toydb-orange hover:text-toydb-white">
-                {filterFields[filter.field]}: {filter.value} ×
+                {filterFields[filter.field]}: {getFilterValueLabel(filter.field, filter.value)} ×
               </button>
             ))}
           </div>}
@@ -499,8 +506,8 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
             <div className="flex gap-2"><button type="button" onClick={applySearch} disabled={!searchDraft.trim()} className="bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white hover:bg-toydb-teal-dark disabled:cursor-not-allowed disabled:opacity-60">Apply</button><button type="button" onClick={clearSearch} className="border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-medium text-toydb-navy hover:bg-toydb-cream">Clear</button></div>
           </div>}
           {filterOpen && <div className="grid gap-3 border border-toydb-border bg-toydb-white p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
-            <label className="block text-sm font-medium text-toydb-navy">Filter by<select value={filterField} onChange={event => changeFilterField(event.target.value)} className="mt-1 w-full p-2"><option value="tag">Tag</option><option value="condition">Condition</option><option value="manufacturer">Manufacturer</option><option value="release">Release</option><option value="faction">Faction</option><option value="toyline">Toyline</option><option value="year">Year</option><option value="series">Series</option><option value="sub_series">Sub-Series</option><option value="theme">Theme</option></select></label>
-            <label className="block text-sm font-medium text-toydb-navy">Value<select value={filterValue} onChange={event => setFilterValue(event.target.value)} className="mt-1 w-full p-2"><option value="">Select a value</option>{filterValues.map(value => <option key={value} value={value}>{value}</option>)}</select></label>
+            <label className="block text-sm font-medium text-toydb-navy">Filter by<select value={filterField} onChange={event => changeFilterField(event.target.value)} className="mt-1 w-full p-2"><option value="tag">Tag</option><option value="condition">Condition</option><option value="manufacturer">Manufacturer</option><option value="release">Release</option><option value="faction">Faction</option><option value="toyline">Toyline</option><option value="year">Year</option><option value="series">Series</option><option value="sub_series">Sub-Series</option><option value="theme">Theme</option><option value="stock_location">Stock Location</option><option value="has_photo">Photos</option></select></label>
+            <label className="block text-sm font-medium text-toydb-navy">Value<select value={filterValue} onChange={event => setFilterValue(event.target.value)} className="mt-1 w-full p-2"><option value="">Select a value</option>{filterValues.map(value => <option key={value} value={value}>{filterField === 'has_photo' ? getFilterValueLabel(filterField, value) : value}</option>)}</select></label>
             <div className="flex gap-2"><button type="button" onClick={applyFilter} disabled={!filterValue} className="bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white hover:bg-toydb-teal-dark disabled:cursor-not-allowed disabled:opacity-60">Add filter</button>{appliedFilters.length > 0 && <button type="button" onClick={clearAppliedFilters} className="border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-medium text-toydb-navy hover:bg-toydb-cream">Clear all</button>}</div>
           </div>}
           <div className="grid grid-cols-1 gap-4">
@@ -565,7 +572,7 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
             </button>}
             {appliedFilters.map(filter => (
               <button key={`${filter.field}:${filter.value}`} type="button" onClick={() => removeFilter(filter.field)} className="rounded-full border border-toydb-orange bg-toydb-orange-pale px-2 py-1 text-xs font-medium text-toydb-orange-dark hover:bg-toydb-orange hover:text-toydb-white">
-                {filterFields[filter.field]}: {filter.value} ×
+                {filterFields[filter.field]}: {getFilterValueLabel(filter.field, filter.value)} ×
               </button>
             ))}
           </div>}
@@ -574,8 +581,8 @@ export default function Dashboard({ wishlist = false, forSale = false, hidden = 
             <div className="flex gap-2"><button type="button" onClick={applySearch} disabled={!searchDraft.trim()} className="bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white hover:bg-toydb-teal-dark disabled:cursor-not-allowed disabled:opacity-60">Apply</button><button type="button" onClick={clearSearch} className="border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-medium text-toydb-navy hover:bg-toydb-cream">Clear</button></div>
           </div>}
           {filterOpen && <div className="grid gap-3 border border-toydb-border bg-toydb-white p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
-            <label className="block text-sm font-medium text-toydb-navy">Filter by<select value={filterField} onChange={event => changeFilterField(event.target.value)} className="mt-1 w-full p-2"><option value="tag">Tag</option><option value="condition">Condition</option><option value="manufacturer">Manufacturer</option><option value="release">Release</option><option value="faction">Faction</option><option value="toyline">Toyline</option><option value="year">Year</option><option value="series">Series</option><option value="sub_series">Sub-Series</option><option value="theme">Theme</option></select></label>
-            <label className="block text-sm font-medium text-toydb-navy">Value<select value={filterValue} onChange={event => setFilterValue(event.target.value)} className="mt-1 w-full p-2"><option value="">Select a value</option>{filterValues.map(value => <option key={value} value={value}>{value}</option>)}</select></label>
+            <label className="block text-sm font-medium text-toydb-navy">Filter by<select value={filterField} onChange={event => changeFilterField(event.target.value)} className="mt-1 w-full p-2"><option value="tag">Tag</option><option value="condition">Condition</option><option value="manufacturer">Manufacturer</option><option value="release">Release</option><option value="faction">Faction</option><option value="toyline">Toyline</option><option value="year">Year</option><option value="series">Series</option><option value="sub_series">Sub-Series</option><option value="theme">Theme</option><option value="stock_location">Stock Location</option><option value="has_photo">Photos</option></select></label>
+            <label className="block text-sm font-medium text-toydb-navy">Value<select value={filterValue} onChange={event => setFilterValue(event.target.value)} className="mt-1 w-full p-2"><option value="">Select a value</option>{filterValues.map(value => <option key={value} value={value}>{filterField === 'has_photo' ? getFilterValueLabel(filterField, value) : value}</option>)}</select></label>
             <div className="flex gap-2"><button type="button" onClick={applyFilter} disabled={!filterValue} className="bg-toydb-teal px-3 py-2 text-sm font-medium text-toydb-white hover:bg-toydb-teal-dark disabled:cursor-not-allowed disabled:opacity-60">Add filter</button>{appliedFilters.length > 0 && <button type="button" onClick={clearAppliedFilters} className="border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-medium text-toydb-navy hover:bg-toydb-cream">Clear all</button>}</div>
           </div>}
           <>

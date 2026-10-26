@@ -45,12 +45,12 @@ export default function EditToy(){
   const suggestionContext = {}
   const dashboardScope = location.state?.from?.state || location.state || {}
   for (const step of dashboardScope.selectedGroupPath || []) {
-    if (step && ['manufacturer', 'release', 'faction', 'toyline', 'series', 'sub_series', 'theme', 'year'].includes(step.field)) {
+    if (step && ['manufacturer', 'release', 'faction', 'toyline', 'series', 'sub_series', 'theme', 'year', 'stock_location'].includes(step.field)) {
       suggestionContext[step.field] = step.value
     }
   }
   for (const filter of dashboardScope.appliedFilters || []) {
-    if (filter && ['manufacturer', 'release', 'faction', 'toyline', 'series', 'sub_series', 'theme', 'year'].includes(filter.field)) {
+    if (filter && ['manufacturer', 'release', 'faction', 'toyline', 'series', 'sub_series', 'theme', 'year', 'stock_location'].includes(filter.field)) {
       suggestionContext[filter.field] = filter.value
     }
   }
@@ -64,7 +64,8 @@ export default function EditToy(){
     toyline: form.toyline,
     series: form.series,
     sub_series: form.sub_series,
-    theme: form.theme
+    theme: form.theme,
+    stock_location: form.stock_location
   })
   const allTags = useTags()
 
@@ -101,7 +102,7 @@ export default function EditToy(){
         name: data.toy.name || '', copy: data.toy.copy ?? 1, manufacturer: data.toy.manufacturer || '', release: data.toy.release || '', faction: data.toy.faction || '', manufacturer_id: data.toy.manufacturer_id || '', series: data.toy.series || '',
         sub_series: data.toy.sub_series || '', theme: data.toy.theme || '', toyline: data.toy.toyline || '', year: data.toy.year || '',
         notes: data.toy.notes || '', condition: data.toy.condition || '', tagIds: (data.toy.tags || []).map(tag => tag.id), cost: data.toy.cost || '',
-        value: data.toy.value || '', source: data.toy.source || '', for_sale: Boolean(data.toy.for_sale), hidden: Boolean(data.toy.hidden),
+        value: data.toy.value || '', source: data.toy.source || '', stock_location: data.toy.stock_location || '', for_sale: Boolean(data.toy.for_sale), hidden: Boolean(data.toy.hidden),
         accessories: normalizeAccessoryList(data.toy.accessories || [])
       })
     } catch (error) { setError('Server error') }
@@ -718,6 +719,7 @@ export default function EditToy(){
         <Field label="Notes"><textarea value={form.notes || ''} onChange={event => updateField('notes', event.target.value)} className="w-full p-2 border rounded" /></Field>
         <div className="flex gap-2"><Field label="Cost" className="w-1/2"><input value={form.cost} onChange={event => updateField('cost', event.target.value)} type="number" min="0" step="0.01" className="w-full p-2 border rounded" /></Field><Field label="Value" className="w-1/2"><input value={form.value} onChange={event => updateField('value', event.target.value)} type="number" min="0" step="0.01" className="w-full p-2 border rounded" /></Field></div>
         <Field label="Source"><AutocompleteInput value={form.source} suggestions={suggestions.source} onChange={value => updateField('source', value)} /></Field>
+        <Field label="Stock Location"><AutocompleteInput value={form.stock_location} suggestions={suggestions.stock_location} onChange={value => updateField('stock_location', value)} /></Field>
         <div>
           <label className="block text-sm text-toydb-slate mb-1">Add Photos</label>
           <input type="file" multiple accept="image/*" onChange={event => setPhotosFiles(Array.from(event.target.files || []))} />

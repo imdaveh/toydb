@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS toys (
   cost DECIMAL(10,2),
   `value` DECIMAL(10,2),
   source VARCHAR(255),
+  stock_location VARCHAR(255),
   notes TEXT,
   `condition` VARCHAR(20),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

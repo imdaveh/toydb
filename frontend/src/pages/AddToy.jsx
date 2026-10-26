@@ -9,12 +9,12 @@ export default function AddToy({ wishlist = false, hidden = false }){
   const prefill = location.state?.prefill || {}
   const suggestionContext = {}
   for (const step of location.state?.selectedGroupPath || []) {
-    if (step && ['manufacturer', 'release', 'faction', 'toyline', 'series', 'sub_series', 'theme', 'year'].includes(step.field)) {
+    if (step && ['manufacturer', 'release', 'faction', 'toyline', 'series', 'sub_series', 'theme', 'year', 'stock_location'].includes(step.field)) {
       suggestionContext[step.field] = step.value
     }
   }
   for (const filter of location.state?.appliedFilters || []) {
-    if (filter && ['manufacturer', 'release', 'faction', 'toyline', 'series', 'sub_series', 'theme', 'year'].includes(filter.field)) {
+    if (filter && ['manufacturer', 'release', 'faction', 'toyline', 'series', 'sub_series', 'theme', 'year', 'stock_location'].includes(filter.field)) {
       suggestionContext[filter.field] = filter.value
     }
   }

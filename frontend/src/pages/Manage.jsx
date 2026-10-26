@@ -63,6 +63,10 @@ export default function Manage(){
     if (!criterion || !criterion.field || !criterion.value) return true
     const value = String(criterion.value).trim()
     if (criterion.field === 'year') return String(toy.year ?? '') === value
+    if (criterion.field === 'has_photo') {
+      const hasPhoto = Array.isArray(toy.photos) ? toy.photos.length > 0 : false
+      return value === 'has_photo' ? hasPhoto : !hasPhoto
+    }
     return String(toy[criterion.field] ?? '') === value
   }
 
@@ -73,6 +77,7 @@ export default function Manage(){
 
   function getAllowedExportValues(field, index){
     if (!bulkCollectionToys.length) return []
+    if (field === 'has_photo') return ['has_photo', 'no_photo']
     const priorCriteria = exportCriteria.slice(0, index).filter(row => row.field && String(row.value ?? '').trim())
     const filteredToys = getFilteredExportToys(priorCriteria)
     const values = [...new Set(filteredToys
@@ -98,6 +103,27 @@ export default function Manage(){
     setExportPreview(null)
   }
 
+  function slugifyExportNamePart(value){
+    return String(value ?? '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 24)
+  }
+
+  function buildExportFilename(criteria, totalCount){
+    const datePart = new Date().toISOString().slice(0, 10)
+    const countPart = String(Number.isFinite(totalCount) ? totalCount : 0)
+    const extraPart = criteria.length === 1 ? (() => {
+      const [criterion] = criteria
+      if (!criterion || !criterion.field || !criterion.value) return ''
+      if (criterion.field === 'has_photo') return criterion.value === 'has_photo' ? 'has-photo' : 'no-photo'
+      return slugifyExportNamePart(criterion.value)
+    })() : ''
+    return `toydb-export-${datePart}-${countPart}${extraPart ? `-${extraPart}` : ''}.csv`
+  }
+
   function previewExportMatches(){
     const criteria = getExportCriteriaPayload()
     const matches = getFilteredExportToys(criteria)
@@ -106,6 +132,7 @@ export default function Manage(){
 
   async function exportCollectionCsv(){
     const criteria = getExportCriteriaPayload()
+    const filteredToys = getFilteredExportToys(criteria)
     setImportError(null)
     setTemplateBusy(true)
     try {
@@ -122,8 +149,9 @@ export default function Manage(){
       }
       const blob = await response.blob()
       const link = document.createElement('a')
+      const filename = buildExportFilename(criteria, filteredToys.length)
       link.href = URL.createObjectURL(blob)
-      link.download = 'toydb-export.csv'
+      link.download = filename
       document.body.appendChild(link)
       link.click()
       link.remove()
@@ -206,6 +234,10 @@ export default function Manage(){
     if (!criterion || !criterion.field || !criterion.value) return true
     const value = String(criterion.value).trim()
     if (criterion.field === 'year') return String(toy.year ?? '') === value
+    if (criterion.field === 'has_photo') {
+      const hasPhoto = Array.isArray(toy.photos) ? toy.photos.length > 0 : false
+      return value === 'has_photo' ? hasPhoto : !hasPhoto
+    }
     return String(toy[criterion.field] ?? '') === value
   }
 
@@ -216,6 +248,7 @@ export default function Manage(){
 
   function getAllowedBulkValues(field, index){
     if (!bulkCollectionToys.length) return []
+    if (field === 'has_photo') return ['has_photo', 'no_photo']
     const priorCriteria = bulkCriteria.slice(0, index).filter(row => row.field && String(row.value ?? '').trim())
     const filteredToys = getFilteredBulkToys(priorCriteria)
     const values = [...new Set(filteredToys
@@ -417,13 +450,15 @@ export default function Manage(){
                           <option value="sub_series">Sub-Series</option>
                           <option value="theme">Theme</option>
                           <option value="condition">Condition</option>
+                          <option value="stock_location">Stock Location</option>
+                          <option value="has_photo">Photos</option>
                           <option value="year">Year</option>
                         </select>
                       </Field>
                       <Field label="Value">
                         <select value={safeValue} onChange={event => updateExportRow(row.id, { value: event.target.value })} className="w-full rounded-lg border border-toydb-border p-2" disabled={!values.length || bulkCollectionLoading}>
                           <option value="">Select a value</option>
-                          {values.map(value => <option key={String(value)} value={value}>{String(value)}</option>)}
+                          {values.map(value => <option key={String(value)} value={value}>{value === 'has_photo' ? 'Has Photo' : value === 'no_photo' ? 'No Photo' : String(value)}</option>)}
                         </select>
                       </Field>
                       <button type="button" onClick={() => { setExportCriteria(current => current.filter(item => item.id !== row.id)); setExportPreview(null) }} disabled={!hasValue} className="rounded-lg border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-medium text-toydb-navy disabled:cursor-not-allowed disabled:opacity-40">
@@ -513,13 +548,15 @@ export default function Manage(){
                     <option value="sub_series">Sub-Series</option>
                     <option value="theme">Theme</option>
                     <option value="condition">Condition</option>
+                    <option value="stock_location">Stock Location</option>
+                    <option value="has_photo">Photos</option>
                     <option value="year">Year</option>
                   </select>
                 </Field>
                 <Field label="Value">
                   <select value={safeValue} onChange={event => updateBulkRow(row.id, { value: event.target.value })} className="w-full rounded-lg border border-toydb-border p-2" disabled={!values.length || bulkCollectionLoading}>
                     <option value="">Select a value</option>
-                    {values.map(value => <option key={String(value)} value={value}>{String(value)}</option>)}
+                    {values.map(value => <option key={String(value)} value={value}>{value === 'has_photo' ? 'Has Photo' : value === 'no_photo' ? 'No Photo' : String(value)}</option>)}
                   </select>
                 </Field>
                 <button type="button" onClick={() => removeBulkRow(row.id)} disabled={bulkCriteria.length === 1} className="rounded-lg border border-toydb-border bg-toydb-white px-3 py-2 text-sm font-medium text-toydb-navy disabled:cursor-not-allowed disabled:opacity-40">

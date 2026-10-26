@@ -87,7 +87,7 @@ export function buildAddToyPrefill(path = [], toys = [], activeFilters = []) {
   if (Array.isArray(path)) {
     for (const step of path) {
       if (!step || typeof step.field !== 'string') continue
-      if (['manufacturer', 'toyline', 'series', 'sub_series', 'year', 'theme'].includes(step.field)) {
+      if (['manufacturer', 'toyline', 'series', 'sub_series', 'year', 'theme', 'stock_location'].includes(step.field)) {
         pathValues[step.field] = step.value
       }
     }
@@ -96,7 +96,7 @@ export function buildAddToyPrefill(path = [], toys = [], activeFilters = []) {
   const filterValues = {}
   for (const filter of Array.isArray(activeFilters) ? activeFilters : []) {
     if (!filter || typeof filter.field !== 'string') continue
-    if (!['manufacturer', 'toyline', 'series', 'sub_series', 'theme', 'year'].includes(filter.field)) continue
+    if (!['manufacturer', 'toyline', 'series', 'sub_series', 'theme', 'year', 'stock_location'].includes(filter.field)) continue
     const value = filter.value
     if (value === null || value === undefined || String(value).trim() === '') continue
     filterValues[filter.field] = value
@@ -111,7 +111,7 @@ export function buildAddToyPrefill(path = [], toys = [], activeFilters = []) {
   })
   const scopeToys = filteredScopeToys.length ? filteredScopeToys : selectedToys
 
-  const fieldPreference = ['manufacturer', 'toyline', 'series', 'sub_series', 'theme', 'year']
+  const fieldPreference = ['manufacturer', 'toyline', 'series', 'sub_series', 'theme', 'year', 'stock_location']
   const groupedValues = {}
 
   for (const field of fieldPreference) {
@@ -135,7 +135,7 @@ export function buildAddToyPrefill(path = [], toys = [], activeFilters = []) {
     explicitSelectionValues.toyline = groupedValues.toyline
   }
 
-  const fallbackFields = ['manufacturer', 'toyline', 'series', 'sub_series', 'theme', 'year']
+  const fallbackFields = ['manufacturer', 'toyline', 'series', 'sub_series', 'theme', 'year', 'stock_location']
   const fallbackValues = {}
 
   for (const field of fallbackFields) {

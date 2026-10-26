@@ -156,19 +156,26 @@ export default function ToyCard({ toy, allowDelete = false, onDeleted, returnSta
                 return <div className="mt-1">{accessories.length > 0 ? 'None' : 'No accessories added yet'}</div>
               })()}
             </div>
-            {!readOnly && ((toy.cost !== null && toy.cost !== undefined && toy.cost !== '') || (toy.value !== null && toy.value !== undefined && toy.value !== '') || toy.source) ? (
-              <div className="mt-2 text-xs text-toydb-slate">
-                <span className="font-semibold text-toydb-navy">Cost:</span> {toy.cost !== null && toy.cost !== undefined && toy.cost !== '' ? `$${parseFloat(toy.cost).toFixed(2)}` : '—'}
-                {' • '}
-                <span className="font-semibold text-toydb-navy">Value:</span> {toy.value !== null && toy.value !== undefined && toy.value !== '' ? `$${parseFloat(toy.value).toFixed(2)}` : '—'}
-                {' • '}
-                <span className="font-semibold text-toydb-navy">Net:</span> {(() => {
-                  const cost = toy.cost !== null && toy.cost !== undefined && toy.cost !== '' ? parseFloat(toy.cost) : 0
-                  const value = toy.value !== null && toy.value !== undefined && toy.value !== '' ? parseFloat(toy.value) : 0
-                  const net = value - cost
-                  return `$${net.toFixed(2)}`
-                })()}
-                {toy.source ? ` • Source: ${toy.source}` : ''}
+            {!readOnly && ((toy.cost !== null && toy.cost !== undefined && toy.cost !== '') || (toy.value !== null && toy.value !== undefined && toy.value !== '') || toy.source || toy.stock_location) ? (
+              <div className="mt-2 space-y-1 text-xs text-toydb-slate">
+                <div>
+                  <span className="font-semibold text-toydb-navy">Cost:</span> {toy.cost !== null && toy.cost !== undefined && toy.cost !== '' ? `$${parseFloat(toy.cost).toFixed(2)}` : '—'}
+                  {' • '}
+                  <span className="font-semibold text-toydb-navy">Value:</span> {toy.value !== null && toy.value !== undefined && toy.value !== '' ? `$${parseFloat(toy.value).toFixed(2)}` : '—'}
+                  {' • '}
+                  <span className="font-semibold text-toydb-navy">Net:</span> {(() => {
+                    const cost = toy.cost !== null && toy.cost !== undefined && toy.cost !== '' ? parseFloat(toy.cost) : 0
+                    const value = toy.value !== null && toy.value !== undefined && toy.value !== '' ? parseFloat(toy.value) : 0
+                    const net = value - cost
+                    return `$${net.toFixed(2)}`
+                  })()}
+                  {toy.source ? <> {' • '} <span className="font-semibold text-toydb-navy">Source:</span> {toy.source}</> : ''}
+                </div>
+                {toy.stock_location && (
+                  <div>
+                    <span className="font-semibold text-toydb-navy">Stock Location:</span> {toy.stock_location}
+                  </div>
+                )}
               </div>
             ) : null}
           </>
